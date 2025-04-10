@@ -40,10 +40,26 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     
     'rest_framework',
+    'rest_framework_simplejwt',
     'tenants',
     'drf_yasg',
+    'corsheaders',
+
 
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3000),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+}
 
 AUTH_USER_MODEL = 'tenants.User'
 
@@ -57,7 +73,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'tenants.middleware.EdirSlugMiddleware',
-     'whitenoise.middleware.WhiteNoiseMiddleware', 
+    'tenants.middleware.EdirMembershipMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware', 
+    
 
 ]
 
@@ -157,3 +175,25 @@ REDOC_SETTINGS = {
     'LAZY_RENDERING': False,
     'SPEC_URL': ('schema-json', {'format': '.json'}),
 }
+
+
+CORS_ALLOW_ALL_ORIGINS = True 
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]

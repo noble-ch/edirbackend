@@ -14,7 +14,7 @@ schema_view = get_schema_view(
       default_version='v1',
       description="API documentation for Edir management system",
       terms_of_service="https://www.yourapp.com/terms/",
-      contact=openapi.Contact(email="contact@yourapp.com"),
+      contact=openapi.Contact(email="noblebarch@gmail.com"),
       license=openapi.License(name="BSD License"),
    ),
    public=True,
@@ -23,7 +23,7 @@ schema_view = get_schema_view(
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('edir/', include('tenants.urls')),
+    path('', include('tenants.urls')),
     
     # Swagger URLs
     re_path(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),

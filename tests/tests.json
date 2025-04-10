@@ -1,0 +1,15 @@
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzQ0NDk5NjM3LCJpYXQiOjE3NDQzMTk2MzcsImp0aSI6IjRlMGVlODBiYWQ0ZTRlZTM4NTAyMDU5NzhhMzExYmMwIiwidXNlcl9pZCI6MTB9.QryTapfIHsagLGbXdemNP_N1ONzOFpkIb75NEi36jFo",
+  "refresh": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTc0NjkxMTYzNywiaWF0IjoxNzQ0MzE5NjM3LCJqdGkiOiI4YTllMTBlYTUxMzc0MjFlYWEwYWNjNjBmN2I4NjhlZiIsInVzZXJfaWQiOjEwfQ.RFD1q-ed-yUfEwg-RM_0kXKHig__9W1dUkDOl7JYpJE",
+  "username": "chuchu",
+  "email": "john@example.com",
+  "edir": {
+    "id": 1,
+    "name": "testedir",
+    "slug": "testedir"
+  },
+  "roles": [],
+  "is_edir_head": false,
+  "verification_status": "approved",
+  "message": "Login successful"
+}

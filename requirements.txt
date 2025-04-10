@@ -1,12 +1,16 @@
 asgiref
 Django
+django-cors-headers
 django-rest-framework
 djangorestframework
+djangorestframework_simplejwt
 drf-yasg
 inflection
 packaging
+PyJWT
 pytz
 PyYAML
+rest-framework-simplejwt
 sqlparse
 uritemplate
 whitenoise
