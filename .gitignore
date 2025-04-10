@@ -25,3 +25,6 @@ Thumbs.db
 # Virtual environments
 env/
 .env/
+
+/static/
+/staticfiles/

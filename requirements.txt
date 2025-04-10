@@ -9,3 +9,4 @@ pytz
 PyYAML
 sqlparse
 uritemplate
+whitenoise
