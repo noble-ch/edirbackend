@@ -15,5 +15,5 @@ member_register = MemberRegistrationViewSet.as_view({'post': 'create'})
 urlpatterns = [
     path('', edir_unique_link_redirect, name='edir_redirect'),
     path('dashboard/', EdirDashboardView.as_view(), name='edir_dashboard'),
-    path('member/create/', member_register, name='member-register'),
+    path('members/create/', member_register, name='member-register'),
 ] + router.urls
