@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
 from .models import User, Edir, EdirRequest, Member, Role
+from .models import Event, Attendance
 
 admin.site.register(User, UserAdmin)
 
@@ -42,11 +43,10 @@ class EdirRequestAdmin(admin.ModelAdmin):
                     username=obj.username,
                     defaults={
                         'email': obj.email,
-                        'password': obj.password  # Consider hashing or generating a temporary password
+                        'password': obj.password  # Latter hashing or generating a temporary password
                     }
                 )
 
-                # You should hash the password manually if needed
                 if created:
                     user.set_password(obj.password)
                     user.save()
@@ -95,3 +95,14 @@ class MemberAdmin(admin.ModelAdmin):
 class RoleAdmin(admin.ModelAdmin):
     list_display = ('member', 'role_type', 'is_active')
     list_filter = ('role_type', 'is_active')
+    
+    
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ('id',)
+ 
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = ('id',)
+  

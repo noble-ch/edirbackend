@@ -1,10 +1,15 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
-    EdirDashboardView,
+    AttendanceViewSet,
+    ContributionViewSet,
+    EventReportViewSet,
+    EventViewSet,
+    ExpenseViewSet,
     RoleAssignmentViewSet,
+    TaskGroupViewSet,
+    TaskViewSet,
     UserLoginAPIView, 
-    edir_unique_link_redirect, 
     MemberRegistrationViewSet,
     MemberViewSet,
     MemberApprovalViewSet,
@@ -12,19 +17,24 @@ from .views import (
 
 router = DefaultRouter()
 router.register(r'members', MemberViewSet, basename='member')
+member_register = MemberRegistrationViewSet.as_view({'post': 'create'})
 router.register(r'member-approvals', MemberApprovalViewSet, basename='member-approval')
 router.register(r'role-assignments', RoleAssignmentViewSet, basename='role-assignment')
 
+# Event-related URLs
+router.register(r'events', EventViewSet, basename='event')
+router.register(r'events/(?P<event_id>\d+)/attendances', AttendanceViewSet, basename='attendance')
+router.register(r'events/(?P<event_id>\d+)/contributions', ContributionViewSet, basename='contribution')
+router.register(r'events/(?P<event_id>\d+)/expenses', ExpenseViewSet, basename='expense')
 
 
-member_register = MemberRegistrationViewSet.as_view({'post': 'create'})
+# Coordinator-specific URLs
+router.register(r'task-groups', TaskGroupViewSet, basename='task-group')
+router.register(r'task-groups/(?P<task_group_id>\d+)/tasks', TaskViewSet, basename='task')
+router.register(r'events/(?P<event_id>\d+)/reports', EventReportViewSet, basename='event-report')
+
 
 urlpatterns = [
-    path('', edir_unique_link_redirect, name='edir_redirect'),
     path('auth/login/', UserLoginAPIView.as_view(), name='edir-user-login'),
-    path('dashboard/', EdirDashboardView.as_view(), name='edir_dashboard'),
     path('members/create/', member_register, name='member-register'),
-
-
-    
 ] + router.urls

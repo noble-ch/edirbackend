@@ -5,7 +5,7 @@ from rest_framework.viewsets import GenericViewSet
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import viewsets, status, mixins
+from rest_framework import viewsets, status, mixins, serializers
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework.renderers import TemplateHTMLRenderer
@@ -13,15 +13,17 @@ from rest_framework.views import APIView
 from rest_framework.throttling import AnonRateThrottle
 from rest_framework import status
 from rest_framework import mixins
+from django.db.models import Q
+from django.utils import timezone
 
 
 
 
 
-from .permissions import IsEdirHeadOrAdmin
-from .serializers import EdirSerializer, MemberApprovalSerializer, MemberSerializer, MemberDetailSerializer, RoleAssignmentSerializer, UserLoginSerializer
+from .permissions import IsCoordinatorOrEdirHead, IsEdirHeadOrAdmin
+from .serializers import AttendanceSerializer, ContributionSerializer, EdirSerializer, EventReportSerializer, EventSerializer, ExpenseSerializer, MemberApprovalSerializer, MemberSerializer, MemberDetailSerializer, RoleAssignmentSerializer, TaskGroupSerializer, TaskSerializer, UserLoginSerializer
 from .forms import EdirRequestForm
-from .models import Edir, Member, Role
+from .models import Attendance, Contribution, Edir, EventReport, Expense, Member, Role, Event, Task, TaskGroup  # Ensure Event is imported
 
 
 
@@ -62,15 +64,6 @@ class EdirRequestAPIView(APIView):
         return Response({'form': form})
 
 
-class EdirDashboardView(RetrieveAPIView):
-    permission_classes = [IsAuthenticated]
-    queryset = Edir.objects.all()
-    serializer_class = EdirSerializer
-    lookup_field = 'slug'
-    
-def edir_unique_link_redirect(request, edir_slug):  
-    edir = get_object_or_404(Edir, slug=edir_slug)
-    return redirect('edir_dashboard', edir_slug=edir.slug)
 
 
 class UserLoginAPIView(APIView):
@@ -105,42 +98,7 @@ class UserLoginAPIView(APIView):
             status=status.HTTP_400_BAD_REQUEST
         )
         
-    
-class MemberApprovalViewSet(
-    mixins.UpdateModelMixin,
-    GenericViewSet
-):
-    permission_classes = [IsAuthenticated]
-    queryset = Member.objects.all()
-    serializer_class = MemberApprovalSerializer
-    lookup_field = 'id'
 
-    def get_queryset(self):
-        # Only show members from the user's edir
-        user = self.request.user
-        if user.is_superuser:
-            return Member.objects.all()
-        return Member.objects.filter(edir__head=user)
-    
-
-class RoleAssignmentViewSet(
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    mixins.ListModelMixin,
-    GenericViewSet
-):
-    permission_classes = [IsAuthenticated]
-    queryset = Role.objects.all()
-    serializer_class = RoleAssignmentSerializer
-
-    def get_queryset(self):
-        # Only show roles from the user's edir
-        user = self.request.user
-        if user.is_superuser:
-            return Role.objects.all()
-        return Role.objects.filter(member__edir__head=user)
-    
 class MemberRegistrationViewSet(viewsets.ViewSet):
     throttle_classes = [AnonRateThrottle]
     
@@ -178,6 +136,43 @@ class MemberRegistrationViewSet(viewsets.ViewSet):
     def _send_verification_email(self, member):
         # Implement email sending logic here
         pass
+    
+     
+class MemberApprovalViewSet(
+    mixins.UpdateModelMixin,
+    GenericViewSet
+):
+    permission_classes = [IsAuthenticated]
+    queryset = Member.objects.all()
+    serializer_class = MemberApprovalSerializer
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Member.objects.all()
+        return Member.objects.filter(edir__head=user)
+    
+
+class RoleAssignmentViewSet(
+    mixins.CreateModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    GenericViewSet
+):
+    permission_classes = [IsAuthenticated]
+    queryset = Role.objects.all()
+    serializer_class = RoleAssignmentSerializer
+
+    def get_queryset(self):
+        # Only show roles from the user's edir
+        user = self.request.user
+        if user.is_superuser:
+            return Role.objects.all()
+        return Role.objects.filter(member__edir__head=user)
+    
+
 
 class MemberViewSet(mixins.RetrieveModelMixin,
                    mixins.UpdateModelMixin,
@@ -241,3 +236,285 @@ class MemberViewSet(mixins.RetrieveModelMixin,
     )
     def list(self, request, *args, **kwargs):
         return super().list(request, *args, **kwargs)
+    
+
+class EventViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = EventSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        edir_slug = self.kwargs.get('edir_slug')
+        
+        if edir_slug:
+            return Event.objects.filter(edir__slug=edir_slug)
+        
+        if user.is_superuser:
+            return Event.objects.all()
+        
+        # For regular users, show only events from their edirs
+        return Event.objects.filter(edir__members__user=user)
+    
+    def perform_create(self, serializer):
+        edir_slug = self.kwargs.get('edir_slug')
+        edir = get_object_or_404(Edir, slug=edir_slug)
+        member = get_object_or_404(Member, user=self.request.user, edir=edir)
+        serializer.save(edir=edir, created_by=member)
+
+class AttendanceViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AttendanceSerializer
+    
+    def get_queryset(self):
+        user = self.request.user
+        event_id = self.kwargs.get('event_id')
+        
+        if user.is_superuser:
+            return Attendance.objects.all()
+        
+        return Attendance.objects.filter(
+            Q(member__user=user) | 
+            Q(event__edir__members__user=user)
+        ).distinct()
+    
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get('event_id')
+        event = get_object_or_404(Event, id=event_id)
+        member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
+        serializer.save(event=event, member=member)
+
+class ContributionViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ContributionSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        event_id = self.kwargs.get('event_id')
+
+        base_queryset = Contribution.objects.all()
+
+        if event_id:
+            base_queryset = base_queryset.filter(event_id=event_id)
+            
+        if user.is_superuser:
+            return base_queryset
+
+        try:
+            member = Member.objects.get(user=user) 
+            edir = member.edir
+
+            if edir.head == user:
+                return base_queryset.filter(event__edir=edir)
+
+            return base_queryset.filter(member=member)
+
+        except Member.DoesNotExist:
+             return Contribution.objects.none()
+
+
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get('event_id')
+        if not event_id:
+             raise serializers.ValidationError("Event ID must be provided in the URL.")
+
+        event = get_object_or_404(Event, id=event_id)
+        member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
+
+        serializer.save(event=event, member=member)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsEdirHeadOrAdmin])
+    def confirm(self, request, pk=None, **kwargs): 
+        contribution = self.get_object()
+        try:
+            requesting_member = get_object_or_404(Member, user=request.user)
+        except Member.DoesNotExist:
+             return Response({"error": "Requesting user is not a registered member."}, status=status.HTTP_403_FORBIDDEN)
+
+        if contribution.event.edir != requesting_member.edir:
+            return Response(
+                {"error": "You can only confirm contributions in your Edir"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        contribution.confirmed_by = requesting_member
+        contribution.confirmed_at = timezone.now()
+        contribution.save()
+
+        serializer = self.get_serializer(contribution)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class ExpenseViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = ExpenseSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        event_id = self.kwargs.get('event_id')
+
+        base_queryset = Expense.objects.all()
+
+        if event_id:
+            base_queryset = base_queryset.filter(event_id=event_id)
+
+        if user.is_superuser:
+            return base_queryset
+
+        try:
+            member = Member.objects.get(user=user)
+            edir = member.edir
+
+            if edir.head == user:
+                return base_queryset.filter(event__edir=edir)
+
+            return base_queryset.filter(spent_by=member)
+
+        except Member.DoesNotExist:
+            return Expense.objects.none()
+
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get('event_id')
+        if not event_id:
+             raise serializers.ValidationError("Event ID must be provided in the URL.")
+
+        event = get_object_or_404(Event, id=event_id)
+        member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
+
+        serializer.save(event=event, spent_by=member)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsEdirHeadOrAdmin])
+    def approve(self, request, pk=None, **kwargs):
+        expense = self.get_object()
+        try:
+            requesting_member = get_object_or_404(Member, user=request.user)
+        except Member.DoesNotExist:
+             return Response({"error": "Requesting user is not a registered member."}, status=status.HTTP_403_FORBIDDEN)
+
+        if expense.event.edir != requesting_member.edir:
+            return Response(
+                {"error": "You can only approve expenses in your Edir"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        expense.approved_by = requesting_member
+        expense.approved_at = timezone.now()
+        expense.save()
+
+        serializer = self.get_serializer(expense)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+class TaskGroupViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsCoordinatorOrEdirHead]
+    serializer_class = TaskGroupSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        edir_slug = self.kwargs.get('edir_slug')
+
+        if edir_slug:
+            return TaskGroup.objects.filter(edir__slug=edir_slug)
+        
+        if user.is_superuser:
+            return TaskGroup.objects.all()
+        
+        # For coordinators, show only their edir's task groups
+        return TaskGroup.objects.filter(edir__members__user=user)
+
+    def perform_create(self, serializer):
+        edir_slug = self.kwargs.get('edir_slug')
+        edir = get_object_or_404(Edir, slug=edir_slug)
+        member = get_object_or_404(Member, user=self.request.user, edir=edir)
+        serializer.save(edir=edir, created_by=member)
+
+class TaskViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsCoordinatorOrEdirHead]
+    serializer_class = TaskSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        task_group_id = self.kwargs.get('task_group_id')
+
+        queryset = Task.objects.all()
+        if task_group_id:
+            queryset = queryset.filter(task_group_id=task_group_id)
+        
+        if user.is_superuser:
+            return queryset
+        
+        # For coordinators, show only tasks from their edir
+        return queryset.filter(task_group__edir__members__user=user)
+
+    def perform_create(self, serializer):
+        task_group_id = self.kwargs.get('task_group_id')
+        task_group = get_object_or_404(TaskGroup, id=task_group_id)
+        member = get_object_or_404(Member, user=self.request.user, edir=task_group.edir)
+        serializer.save(task_group=task_group, assigned_by=member)
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, task_group_id=None, pk=None):
+        task = self.get_object()
+        task.status = 'completed'
+        task.completed_at = timezone.now()
+        task.save()
+        return Response({'status': 'task completed'})
+
+class EventReportViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated, IsCoordinatorOrEdirHead]
+    serializer_class = EventReportSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        event_id = self.kwargs.get('event_id')
+
+        queryset = EventReport.objects.all()
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        
+        if user.is_superuser:
+            return queryset
+        
+        # For coordinators, show only reports from their edir
+        return queryset.filter(event__edir__members__user=user)
+
+    def perform_create(self, serializer):
+        event_id = self.kwargs.get('event_id')
+        event = get_object_or_404(Event, id=event_id)
+        member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
+        
+        # Generate attendance summary
+        attendances = event.attendances.all()
+        attendance_summary = {
+            'total_members': event.edir.members.count(),
+            'attending': attendances.filter(status='attending').count(),
+            'not_attending': attendances.filter(status='not_attending').count(),
+            'maybe': attendances.filter(status='maybe').count(),
+            'no_response': event.edir.members.count() - attendances.count()
+        }
+        
+        # Generate financial summary
+        contributions = event.contributions.all()
+        expenses = event.expenses.all()
+        financial_summary = {
+            'total_contributions': sum(c.amount for c in contributions),
+            'total_expenses': sum(e.amount for e in expenses),
+            'balance': sum(c.amount for c in contributions) - sum(e.amount for e in expenses),
+            'contribution_count': contributions.count(),
+            'expense_count': expenses.count()
+        }
+        
+        serializer.save(
+            event=event,
+            prepared_by=member,
+            attendance_summary=attendance_summary,
+            financial_summary=financial_summary
+        )
+
+    @action(detail=True, methods=['get'])
+    def generate_pdf(self, request, event_id=None, pk=None):
+        # This would generate a PDF version of the report
+        # Implementation would depend on your PDF generation library
+        report = self.get_object()
+        # pdf = generate_pdf_function(report)
+        # return FileResponse(pdf, filename=f"report-{report.event.title}.pdf")
+        return Response({'message': 'PDF generation endpoint'})

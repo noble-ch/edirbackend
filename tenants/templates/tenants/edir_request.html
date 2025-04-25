@@ -11,36 +11,36 @@
             background-color: #f8f9fa;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
-        
+
         .registration-card {
             border-radius: 10px;
             overflow: hidden;
             border: none;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
-        
+
         .card-header {
             padding: 1.5rem;
             background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
         }
-        
+
         .form-control {
             padding: 0.75rem 1rem;
             border-radius: 0.375rem;
             border: 1px solid #ced4da;
             transition: all 0.3s ease;
         }
-        
+
         .form-control:focus {
             border-color: #86b7fe;
             box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
         }
-        
+
         .invalid-feedback {
             color: #dc3545;
             font-size: 0.875rem;
         }
-        
+
         .btn-submit {
             background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%);
             border: none;
@@ -49,12 +49,12 @@
             letter-spacing: 0.5px;
             transition: all 0.3s ease;
         }
-        
+
         .btn-submit:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25);
         }
-        
+
         .password-strength {
             height: 4px;
             background-color: #e9ecef;
@@ -62,18 +62,28 @@
             border-radius: 2px;
             overflow: hidden;
         }
-        
+
         .password-strength-bar {
             height: 100%;
             width: 0%;
             transition: width 0.3s ease, background-color 0.3s ease;
         }
-        
+
         .form-text {
             font-size: 0.8rem;
             color: #6c757d;
         }
-        
+
+        .notice {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            font-size: 0.9rem;
+            color: #856404;
+            margin-top: 1rem;
+        }
+
         /* Responsive adjustments */
         @media (max-width: 576px) {
             .card-body {
@@ -92,9 +102,13 @@
                         <p class="mb-0 mt-2 opacity-75">Create your community in minutes</p>
                     </div>
                     <div class="card-body p-4">
-                        <form method="post" class="needs-validation" novalidate>
+                        <div class="notice">
+                            <strong>Note:</strong> After your request is approved, you will be assigned as the head of this Edir. Please make sure you are ready to lead and manage your community.
+                        </div>
+
+                        <form method="post" class="needs-validation mt-4" novalidate>
                             {% csrf_token %}
-                            
+
                             {% if form.non_field_errors %}
                                 <div class="alert alert-danger">
                                     {% for error in form.non_field_errors %}
@@ -102,38 +116,38 @@
                                     {% endfor %}
                                 </div>
                             {% endif %}
-                            
+
                             <!-- Full Name Field -->
                             <div class="mb-3">
                                 <label for="id_full_name" class="form-label">Full Name</label>
-                                <input type="text" name="full_name" id="id_full_name" class="form-control" 
+                                <input type="text" name="full_name" id="id_full_name" class="form-control"
                                        placeholder="Abebe Kebede" required>
                                 <div class="invalid-feedback">Please enter your full name.</div>
                             </div>
-                            
+
                             <!-- Username Field -->
                             <div class="mb-3">
                                 <label for="id_username" class="form-label">Username</label>
                                 <div class="input-group">
                                     <span class="input-group-text">@</span>
-                                    <input type="text" name="username" id="id_username" class="form-control" 
+                                    <input type="text" name="username" id="id_username" class="form-control"
                                            placeholder="abebekebede" required>
                                 </div>
                                 <div class="invalid-feedback">Please choose a username.</div>
                             </div>
-                            
+
                             <!-- Email Field -->
                             <div class="mb-3">
                                 <label for="id_email" class="form-label">Email Address</label>
-                                <input type="email" name="email" id="id_email" class="form-control" 
+                                <input type="email" name="email" id="id_email" class="form-control"
                                        placeholder="abebe@email.com" required>
                                 <div class="invalid-feedback">Please enter a valid email address.</div>
                             </div>
-                            
+
                             <!-- Password Field -->
                             <div class="mb-3">
                                 <label for="id_password" class="form-label">Password</label>
-                                <input type="password" name="password" id="id_password" class="form-control" 
+                                <input type="password" name="password" id="id_password" class="form-control"
                                        placeholder="Create a strong password" required
                                        pattern="^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[@$!%*#?&]).{8,}$">
                                 <div class="password-strength mt-2">
@@ -143,26 +157,26 @@
                                     Must be at least 8 characters with uppercase, lowercase, number, and special character.
                                 </div>
                                 <div class="invalid-feedback">
-                                    Password must contain at least one uppercase, lowercase, number and special character
+                                    Password must contain at least one uppercase, lowercase, number and special character.
                                 </div>
                             </div>
-                            
+
                             <!-- Edir Name Field -->
                             <div class="mb-3">
                                 <label for="id_edir_name" class="form-label">Edir Name</label>
-                                <input type="text" name="edir_name" id="id_edir_name" class="form-control" 
+                                <input type="text" name="edir_name" id="id_edir_name" class="form-control"
                                        placeholder="My Edir Community" required>
                                 <div class="invalid-feedback">Please enter your Edir name.</div>
                             </div>
-                            
+
                             <!-- Description Field -->
                             <div class="mb-4">
                                 <label for="id_edir_description" class="form-label">Description</label>
-                                <textarea name="edir_description" id="id_edir_description" class="form-control" 
+                                <textarea name="edir_description" id="id_edir_description" class="form-control"
                                           rows="4" placeholder="Describe your Edir community purpose..." required></textarea>
                                 <div class="invalid-feedback">Please provide a description.</div>
                             </div>
-                            
+
                             <!-- Submit Button -->
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-submit btn-lg">
@@ -171,9 +185,11 @@
                             </div>
                         </form>
                     </div>
-                    {% comment %} <div class="card-footer bg-light text-center py-3">
+                    {% comment %} 
+                    <div class="card-footer bg-light text-center py-3">
                         <p class="mb-0">Already have an account? <a href="{% url 'login' %}" class="text-primary">Sign in</a></p>
-                    </div> {% endcomment %}
+                    </div> 
+                    {% endcomment %}
                 </div>
             </div>
         </div>
@@ -181,61 +197,48 @@
 
     <!-- Bootstrap JS Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Custom JavaScript -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Form validation
             const forms = document.querySelectorAll('.needs-validation');
-            
             Array.prototype.slice.call(forms).forEach(function(form) {
                 form.addEventListener('submit', function(event) {
                     if (!form.checkValidity()) {
                         event.preventDefault();
                         event.stopPropagation();
                     }
-                    
                     form.classList.add('was-validated');
                 }, false);
             });
-            
+
             // Password strength indicator
             const passwordInput = document.getElementById('id_password');
             if (passwordInput) {
                 const strengthBar = document.querySelector('.password-strength-bar');
-                
                 passwordInput.addEventListener('input', function() {
                     const password = this.value;
                     let strength = 0;
-                    
-                    // Length check
                     if (password.length >= 8) strength += 25;
                     if (password.length >= 12) strength += 15;
-                    
-                    // Character diversity
                     if (/[A-Z]/.test(password)) strength += 15;
                     if (/[a-z]/.test(password)) strength += 15;
                     if (/\d/.test(password)) strength += 15;
                     if (/[@$!%*#?&]/.test(password)) strength += 15;
-                    
-                    // Cap at 100
                     strength = Math.min(strength, 100);
-                    
-                    // Update strength bar
                     strengthBar.style.width = strength + '%';
-                    
-                    // Change color based on strength
                     if (strength < 40) {
-                        strengthBar.style.backgroundColor = '#dc3545'; // red
+                        strengthBar.style.backgroundColor = '#dc3545';
                     } else if (strength < 70) {
-                        strengthBar.style.backgroundColor = '#ffc107'; // yellow
+                        strengthBar.style.backgroundColor = '#ffc107';
                     } else {
-                        strengthBar.style.backgroundColor = '#198754'; // green
+                        strengthBar.style.backgroundColor = '#198754';
                     }
                 });
             }
-            
-            // Add real-time validation as user types
+
+            // Real-time field validation
             const fields = document.querySelectorAll('.form-control');
             fields.forEach(field => {
                 field.addEventListener('input', function() {

@@ -1,8 +1,9 @@
 # tenants/serializers.py
 
+from .models import Event, EventReport, TaskGroup ,Task
 from django.utils.timezone import now as timezone_now
 from rest_framework import serializers
-from .models import Member, Spouse, FamilyMember, Representative, Edir, Role
+from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir, Role
 from django.contrib.auth import get_user_model
 
 from django.contrib.auth import authenticate
@@ -179,7 +180,7 @@ class MemberApprovalSerializer(serializers.ModelSerializer):
             instance.processed_at = timezone_now()
             instance.save()
             
-            # You could add logic here to send notifications
+            # later add logic here to send notifications
             # when a member's status changes
             
         return instance
@@ -203,10 +204,8 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
         if role_type == 'MEMBER':
             raise serializers.ValidationError("MEMBER role is automatically assigned")
         
-        # Check if this is an update to existing role
         instance = self.instance
         if instance:
-            # For updates, just verify the role isn't being changed to MEMBER
             if role_type == 'MEMBER':
                 raise serializers.ValidationError("Cannot change to MEMBER role")
         else:
@@ -335,3 +334,67 @@ class MemberDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 
                            'status', ]
+        
+        
+class EventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = ['id', 'title', 'description', 'event_type', 'start_date', 'end_date', 
+                 'location', 'created_by', 'edir', 'created_at', 'is_active']
+        read_only_fields = ['id', 'created_by', 'created_at','edir',]
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.full_name', read_only=True)
+    
+    class Meta:
+        model = Attendance
+        fields = ['id', 'event', 'member', 'member_name', 'status', 'responded_at', 'note']
+        read_only_fields = ['id', 'responded_at','event', 'member']
+
+class ContributionSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.full_name', read_only=True)
+    
+    class Meta:
+        model = Contribution
+        fields = ['id', 'event', 'member', 'member_name', 'amount', 'payment_method', 
+                 'payment_date', 'confirmed_by', 'confirmed_at', 'note']
+        read_only_fields = ['id', 'confirmed_by', 'confirmed_at', 'event', 'member', 'payment_date']
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    spent_by_name = serializers.CharField(source='spent_by.full_name', read_only=True)
+    approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Expense
+        fields = ['id', 'event', 'description', 'amount', 'spent_by', 'spent_by_name', 
+                 'spent_date', 'receipt', 'approved_by', 'approved_by_name', 'approved_at']
+        read_only_fields = ['id', 'approved_by', 'approved_at', 'event', 'spent_by', 'receipt']
+        
+class TaskGroupSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TaskGroup
+        fields = ['id', 'name', 'description', 'edir', 'created_by', 'created_at', 'is_active']
+        read_only_fields = ['id', 'created_by', 'created_at', 'edir']
+
+class TaskSerializer(serializers.ModelSerializer):
+    assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True)
+    assigned_by_name = serializers.CharField(source='assigned_by.full_name', read_only=True)
+    task_group_name = serializers.CharField(source='task_group.name', read_only=True)
+
+    class Meta:
+        model = Task
+        fields = ['id', 'task_group', 'task_group_name', 'title', 'description', 
+                 'assigned_to', 'assigned_to_name', 'assigned_by', 'assigned_by_name',
+                 'due_date', 'priority', 'status', 'created_at', 'completed_at']
+        read_only_fields = ['id', 'assigned_by', 'created_at', 'completed_at', 'task_group']
+
+class EventReportSerializer(serializers.ModelSerializer):
+    prepared_by_name = serializers.CharField(source='prepared_by.full_name', read_only=True)
+    event_title = serializers.CharField(source='event.title', read_only=True)
+
+    class Meta:
+        model = EventReport
+        fields = ['id', 'event', 'event_title', 'prepared_by', 'prepared_by_name',
+                 'attendance_summary', 'financial_summary', 'notes',
+                 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'event', 'prepared_by']
