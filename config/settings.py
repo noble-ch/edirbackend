@@ -75,6 +75,7 @@ MIDDLEWARE = [
     'tenants.middleware.EdirSlugMiddleware',
     'tenants.middleware.EdirMembershipMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware', 
+    'corsheaders.middleware.CorsMiddleware'
     
 
 ]
