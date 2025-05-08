@@ -21,9 +21,9 @@ from django.utils import timezone
 
 
 from .permissions import IsCoordinatorOrEdirHead, IsEdirHeadOrAdmin
-from .serializers import AttendanceSerializer, ContributionSerializer, EdirSerializer, EventReportSerializer, EventSerializer, ExpenseSerializer, MemberApprovalSerializer, MemberSerializer, MemberDetailSerializer, RoleAssignmentSerializer, TaskGroupSerializer, TaskSerializer, UserLoginSerializer
+from .serializers import AttendanceSerializer, ContributionSerializer, EdirSerializer, EventReportSerializer, EventSerializer, ExpenseSerializer, MemberSerializer, MemberDetailSerializer,  TaskGroupSerializer, TaskSerializer, UserLoginSerializer
 from .forms import EdirRequestForm
-from .models import Attendance, Contribution, Edir, EventReport, Expense, Member, Role, Event, Task, TaskGroup  # Ensure Event is imported
+from .models import Attendance, Contribution, Edir, EventReport, Expense, Member,  Event, Task, TaskGroup  # Ensure Event is imported
 
 
 
@@ -138,41 +138,6 @@ class MemberRegistrationViewSet(viewsets.ViewSet):
         pass
     
      
-class MemberApprovalViewSet(
-    mixins.UpdateModelMixin,
-    GenericViewSet
-):
-    permission_classes = [IsAuthenticated]
-    queryset = Member.objects.all()
-    serializer_class = MemberApprovalSerializer
-    lookup_field = 'id'
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_superuser:
-            return Member.objects.all()
-        return Member.objects.filter(edir__head=user)
-    
-
-class RoleAssignmentViewSet(
-    mixins.CreateModelMixin,
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    mixins.ListModelMixin,
-    GenericViewSet
-):
-    permission_classes = [IsAuthenticated]
-    queryset = Role.objects.all()
-    serializer_class = RoleAssignmentSerializer
-
-    def get_queryset(self):
-        # Only show roles from the user's edir
-        user = self.request.user
-        if user.is_superuser:
-            return Role.objects.all()
-        return Role.objects.filter(member__edir__head=user)
-    
-
 
 class MemberViewSet(mixins.RetrieveModelMixin,
                    mixins.UpdateModelMixin,
@@ -252,7 +217,6 @@ class EventViewSet(viewsets.ModelViewSet):
         if user.is_superuser:
             return Event.objects.all()
         
-        # For regular users, show only events from their edirs
         return Event.objects.filter(edir__members__user=user)
     
     def perform_create(self, serializer):
@@ -260,6 +224,36 @@ class EventViewSet(viewsets.ModelViewSet):
         edir = get_object_or_404(Edir, slug=edir_slug)
         member = get_object_or_404(Member, user=self.request.user, edir=edir)
         serializer.save(edir=edir, created_by=member)
+    
+    @swagger_auto_schema(
+        operation_description="Retrieve details of a specific event",
+        responses={200: EventSerializer}
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Update an event",
+        request_body=EventSerializer,
+        responses={200: EventSerializer}
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Partial update of an event",
+        request_body=EventSerializer,
+        responses={200: EventSerializer}
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Delete an event",
+        responses={204: "No content"}
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -409,23 +403,18 @@ class TaskGroupViewSet(viewsets.ModelViewSet):
     serializer_class = TaskGroupSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        edir_slug = self.kwargs.get('edir_slug')
-
-        if edir_slug:
-            return TaskGroup.objects.filter(edir__slug=edir_slug)
-        
-        if user.is_superuser:
-            return TaskGroup.objects.all()
-        
-        # For coordinators, show only their edir's task groups
-        return TaskGroup.objects.filter(edir__members__user=user)
+        event_id = self.request.query_params.get('event_id')
+        queryset = TaskGroup.objects.filter(edir__slug=self.kwargs.get('edir_slug'))
+        if event_id:
+            queryset = queryset.filter(event_id=event_id)
+        return queryset
 
     def perform_create(self, serializer):
-        edir_slug = self.kwargs.get('edir_slug')
-        edir = get_object_or_404(Edir, slug=edir_slug)
+        edir = get_object_or_404(Edir, slug=self.kwargs.get('edir_slug'))
+        event_id = self.request.data.get('event')
+        event = get_object_or_404(Event, id=event_id) if event_id else None
         member = get_object_or_404(Member, user=self.request.user, edir=edir)
-        serializer.save(edir=edir, created_by=member)
+        serializer.save(edir=edir, event=event, created_by=member)
 
 class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsCoordinatorOrEdirHead]

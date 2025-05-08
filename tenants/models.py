@@ -73,12 +73,17 @@ class Member(models.Model):
         ('approved', 'Approved'),
         ('rejected', 'Rejected'),
     ]
-    
+    ROLE_CHOICES = [
+        ('TREASURER', 'Treasurer'),
+        ('PROPERTY_MANAGER', 'Property Manager'),
+        ('COORDINATOR', 'Event Coordinator'),
+        ('MEMBER', 'Regular Member'),
+    ]
     REGISTRATION_TYPE_CHOICES = [
         ('single', 'Single'),
         ('family', 'Family'),
     ]
-    
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='MEMBER')
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='member')
     edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='members')
     full_name = models.CharField(max_length=100)
@@ -102,26 +107,6 @@ class Member(models.Model):
     def is_approved(self):
         return self.status == 'approved'
 
-class Role(models.Model):
-    ROLE_CHOICES = [
-        # ('HEAD', 'Head of Edir'),
-        ('TREASURER', 'Treasurer'),
-        ('PROPERTY_MANAGER', 'Property Manager'),
-        ('COORDINATOR', 'Event Coordinator'),
-        ('MEMBER', 'Regular Member'),
-    ]
-    
-    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='roles')
-    assigned_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='assigned_roles')
-    assigned_at = models.DateTimeField(auto_now_add=True)
-    role_type = models.CharField(max_length=20, choices=ROLE_CHOICES, default='MEMBER')
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        unique_together = ('member', 'role_type')
-
-    def __str__(self):
-        return f"{self.member.full_name} - {self.get_role_type_display()}"
     
     
 class Spouse(models.Model):
@@ -250,15 +235,13 @@ class Expense(models.Model):
         return f"{self.description} - {self.amount}"
     
 class TaskGroup(models.Model):
-    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='task_groups')
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
-    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='created_task_groups')
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, null=True, blank=True)  # New field
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"{self.name} ({self.edir.name})"
 
 class Task(models.Model):
     PRIORITY_CHOICES = [

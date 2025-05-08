@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib import messages
 from django.db import transaction
 from django.utils import timezone
-from .models import User, Edir, EdirRequest, Member, Role
+from .models import User, Edir, EdirRequest, Member
 from .models import Event, Attendance
 
 admin.site.register(User, UserAdmin)
@@ -91,12 +91,7 @@ class MemberAdmin(admin.ModelAdmin):
         return obj.status
     get_status.short_description = 'Status'
 
-@admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
-    list_display = ('member', 'role_type', 'is_active')
-    list_filter = ('role_type', 'is_active')
-    
-    
+
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
     list_display = ('id',)

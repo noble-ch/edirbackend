@@ -1,0 +1,22 @@
+@import "tailwindcss";
+.signature-canvas {
+    touch-action: none;
+    background-color: white;
+  }
+  
+  @media (max-width: 640px) {
+    .signature-canvas {
+      width: 100% !important;
+    }
+  }
+  
+
+
+/* CSS HEX */
+:root {
+  --black: #000000ff;
+  --dark-green: #233529ff;
+  --mint-cream: #F8FEFBff;
+  --pigment-green: #239F31ff;
+  --brunswick-green: #1A4232ff;
+}

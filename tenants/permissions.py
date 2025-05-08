@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 # Import all models that this permission might check against
-from .models import Attendance, Member, Role, Event, Contribution, Expense, Edir
+from .models import Attendance, Member,  Event, Contribution, Expense, Edir
 
 class IsEdirHeadOrAdmin(BasePermission):
     """
@@ -25,9 +25,7 @@ class IsEdirHeadOrAdmin(BasePermission):
         elif isinstance(obj, Expense):
             if obj.event:
                 target_edir = obj.event.edir
-        elif isinstance(obj, Role):
-            if obj.member:
-                target_edir = obj.member.edir
+
         elif isinstance(obj, Edir):
              target_edir = obj
 
@@ -58,10 +56,6 @@ class IsEdirHead(BasePermission):
         # For Member approval/actions
         if isinstance(obj, Member):
             target_edir = obj.edir
-        # For Role assignment/actions
-        elif isinstance(obj, Role):
-            if obj.member:
-                target_edir = obj.member.edir
 
         if not target_edir or not target_edir.head:
             return False
@@ -85,7 +79,6 @@ class IsEventCreatorOrEdirHead(BasePermission):
         elif isinstance(obj, Event): target_edir = obj.edir
         elif isinstance(obj, Contribution): target_edir = obj.event.edir if obj.event else None
         elif isinstance(obj, Expense): target_edir = obj.event.edir if obj.event else None
-        elif isinstance(obj, Role): target_edir = obj.member.edir if obj.member else None
         elif isinstance(obj, Edir): target_edir = obj
 
         if target_edir and target_edir.head and target_edir.head == request.user:
@@ -119,7 +112,7 @@ class IsCoordinatorOrEdirHead(BasePermission):
         try:
             member = Member.objects.get(user=request.user)
             return (member.edir.head == request.user or 
-                    member.roles.filter(role_type='COORDINATOR', is_active=True).exists())
+                    member.role == 'COORDINATOR')
         except Member.DoesNotExist:
             return False
 
@@ -136,7 +129,7 @@ class IsCoordinatorOrEdirHead(BasePermission):
         try:
             member = Member.objects.get(user=request.user)
             return (edir.head == request.user or 
-                    (member.roles.filter(role_type='COORDINATOR', is_active=True).exists() and
+                    (member.role == 'COORDINATOR' and
                      member.edir == edir))
         except Member.DoesNotExist:
             return False

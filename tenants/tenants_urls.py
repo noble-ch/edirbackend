@@ -6,20 +6,16 @@ from .views import (
     EventReportViewSet,
     EventViewSet,
     ExpenseViewSet,
-    RoleAssignmentViewSet,
     TaskGroupViewSet,
     TaskViewSet,
     UserLoginAPIView, 
     MemberRegistrationViewSet,
     MemberViewSet,
-    MemberApprovalViewSet,
 )
 
 router = DefaultRouter()
 router.register(r'members', MemberViewSet, basename='member')
 member_register = MemberRegistrationViewSet.as_view({'post': 'create'})
-router.register(r'member-approvals', MemberApprovalViewSet, basename='member-approval')
-router.register(r'role-assignments', RoleAssignmentViewSet, basename='role-assignment')
 
 # Event-related URLs
 router.register(r'events', EventViewSet, basename='event')

@@ -3,7 +3,7 @@
 from .models import Event, EventReport, TaskGroup ,Task
 from django.utils.timezone import now as timezone_now
 from rest_framework import serializers
-from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir, Role
+from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir
 from django.contrib.auth import get_user_model
 
 from django.contrib.auth import authenticate
@@ -36,11 +36,7 @@ class RepresentativeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Representative
         fields = ['full_name', 'phone_number', 'email', 'date_of_designation']
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = ['id', 'role_type', 'assigned_at', 'is_active']
-        read_only_fields = ['id', 'assigned_at']
+
 
 class UserLoginSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -48,9 +44,10 @@ class UserLoginSerializer(serializers.Serializer):
     access = serializers.CharField(read_only=True)
     refresh = serializers.CharField(read_only=True)
     edir = serializers.SerializerMethodField(read_only=True)  # Single edir now
-    roles = serializers.SerializerMethodField(read_only=True)
     is_edir_head = serializers.SerializerMethodField(read_only=True)
     verification_status = serializers.SerializerMethodField(read_only=True)
+    role = serializers.CharField(read_only=True)
+
 
     def get_verification_status(self, obj):
         edir_slug = self.context.get('edir_slug')
@@ -60,7 +57,7 @@ class UserLoginSerializer(serializers.Serializer):
                     user__username=obj['username'],
                     edir__slug=edir_slug
                 )
-                return member.status  # Use member.status directly from the database
+                return member.status  
             except Member.DoesNotExist:
                 return "not_member"
         return None
@@ -77,17 +74,18 @@ class UserLoginSerializer(serializers.Serializer):
         except Member.DoesNotExist:
             return None
 
-    def get_roles(self, obj):
-        try:
-            member = Member.objects.get(user__username=obj['username'])
-            return list(member.roles.filter(is_active=True).values_list('role_type', flat=True))
-        except Member.DoesNotExist:
-            return []
 
     def get_is_edir_head(self, obj):
         try:
             member = Member.objects.get(user__username=obj['username'])
             return member.edir.head == member.user
+        except Member.DoesNotExist:
+            return False
+        
+    def get_role(self, obj):
+        try:
+            member = Member.objects.get(user__username=obj['username'])
+            return member.edir.role
         except Member.DoesNotExist:
             return False
 
@@ -126,7 +124,7 @@ class UserLoginSerializer(serializers.Serializer):
             refresh = RefreshToken.for_user(user)
             refresh_token = str(refresh)
             access_token = str(refresh.access_token)
-            
+            role = member.role
             update_last_login(None, user)
             
             validation = {
@@ -134,8 +132,9 @@ class UserLoginSerializer(serializers.Serializer):
                 'refresh': refresh_token,
                 'username': user.username,
                 'email': user.email,
+                'role': role,
+
                 'edir': self.get_edir({'username': username}),
-                'roles': self.get_roles({'username': username}),
                 'is_edir_head': self.get_is_edir_head({'username': username}),
                 'verification_status': verification_status,
                 'message': self.get_status_message(verification_status)
@@ -155,75 +154,8 @@ class UserLoginSerializer(serializers.Serializer):
         return messages.get(status, "Unknown status")
         
         
-class MemberApprovalSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Member
-        fields = ['id', 'status']
-        read_only_fields = ['id']
 
-    def validate(self, data):
-        edir = self.instance.edir
-        request_user = self.context['request'].user
-        
-        # Only Edir head can approve/reject members
-        if not (request_user.is_superuser or edir.head == request_user):
-            raise serializers.ValidationError("Only Edir head can approve/reject members")
-        
-        return data
-
-    def update(self, instance, validated_data):
-        new_status = validated_data.get('status', instance.status)
-        
-        if new_status != instance.status:
-            instance.status = new_status
-            instance.processed_by = self.context['request'].user
-            instance.processed_at = timezone_now()
-            instance.save()
-            
-            # later add logic here to send notifications
-            # when a member's status changes
-            
-        return instance
     
-class RoleAssignmentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = ['id', 'member', 'role_type', 'is_active']
-        read_only_fields = ['id']
-
-    def validate(self, data):
-        member = data.get('member')
-        request_user = self.context['request'].user
-        role_type = data.get('role_type')
-        
-        # Only Edir head can assign roles
-        if not (request_user.is_superuser or member.edir.head == request_user):
-            raise serializers.ValidationError("Only Edir head can assign roles")
-        
-        # Prevent assigning MEMBER role (it's auto-assigned)
-        if role_type == 'MEMBER':
-            raise serializers.ValidationError("MEMBER role is automatically assigned")
-        
-        instance = self.instance
-        if instance:
-            if role_type == 'MEMBER':
-                raise serializers.ValidationError("Cannot change to MEMBER role")
-        else:
-            # For new assignments, check for duplicate active roles
-            if Role.objects.filter(
-                member=member,
-                role_type=role_type,
-                is_active=True
-            ).exists():
-                raise serializers.ValidationError("This role is already assigned to the member")
-        
-        return data
-
-    def create(self, validated_data):
-        validated_data['assigned_by'] = self.context['request'].user
-        return super().create(validated_data)
-
-
 class MemberSerializer(serializers.ModelSerializer):
     spouse = SpouseSerializer(required=False)  # Make always optional
     family_members = FamilyMemberSerializer(many=True, required=False)  # Make always optional
@@ -238,10 +170,18 @@ class MemberSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'phone_number', 'address',
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
-            'representatives'
+            'representatives','status',  'created_at', 'updated_at', 'is_active','role'
         ]
         read_only_fields = ['id']
+        def get_fields(self):
+            fields = super().get_fields()
+            request_user = self.context['request'].user
+            edir = self.instance.edir if self.instance else None
 
+            if not (request_user.is_superuser or (edir and edir.head == request_user)):
+                fields['role'].read_only = True
+
+            return fields
     def validate(self, data):
         registration_type = data.get('registration_type')
         
@@ -297,12 +237,7 @@ class MemberSerializer(serializers.ModelSerializer):
             status='pending',
             **validated_data
         )    
-        Role.objects.create(
-            member=member,
-            role_type='MEMBER',
-            is_active=True,
-            assigned_by=user  
-        )    
+ 
 
         # Create related objects only if they exist
         if spouse_data:
@@ -321,7 +256,6 @@ class MemberDetailSerializer(serializers.ModelSerializer):
     family_members = FamilyMemberSerializer(many=True, required=False)
     representatives = RepresentativeSerializer(many=True, required=False)
     edir = EdirSerializer(read_only=True)
-    roles = RoleSerializer(many=True, read_only=True)
     
     class Meta:
         model = Member
@@ -330,7 +264,7 @@ class MemberDetailSerializer(serializers.ModelSerializer):
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
             'representatives', 'created_at', 'updated_at', 'is_active',
-            'status', 'roles',
+            'status', 'role'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 
                            'status', ]
@@ -342,6 +276,8 @@ class EventSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'event_type', 'start_date', 'end_date', 
                  'location', 'created_by', 'edir', 'created_at', 'is_active']
         read_only_fields = ['id', 'created_by', 'created_at','edir',]
+        
+        created_by_name = serializers.CharField(source='created_by.user_name', read_only=True)
 
 class AttendanceSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source='member.full_name', read_only=True)
@@ -373,7 +309,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
 class TaskGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = TaskGroup
-        fields = ['id', 'name', 'description', 'edir', 'created_by', 'created_at', 'is_active']
+        fields = ['id', 'name', 'description', 'edir', 'event', 'created_by', 'created_at', 'is_active']
         read_only_fields = ['id', 'created_by', 'created_at', 'edir']
 
 class TaskSerializer(serializers.ModelSerializer):
