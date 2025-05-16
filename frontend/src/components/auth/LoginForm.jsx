@@ -1,21 +1,21 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { login } from '../../services/authService';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { login } from "../../services/authService";
 
 // Helper object to map roles from API to URL path segments
 const ROLE_TO_PATH_SEGMENT = {
-  'TREASURER': 'treasurer',
-  'PROPERTY_MANAGER': 'propertymanager',
-  'COORDINATOR': 'eventcoordinator',
-  'MEMBER': 'member', 
+  TREASURER: "treasurer",
+  PROPERTY_MANAGER: "propertymanager",
+  COORDINATOR: "eventcoordinator",
+  MEMBER: "member",
 };
 
 export const LoginForm = ({ edirslug }) => {
   const [credentials, setCredentials] = useState({
-    username: '',
-    password: '',
+    username: "",
+    password: "",
   });
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -29,14 +29,14 @@ export const LoginForm = ({ edirslug }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const data = await login(edirslug, credentials);
 
       // Store tokens
-      localStorage.setItem('accessToken', data.access);
-      localStorage.setItem('refreshToken', data.refresh);
+      localStorage.setItem("accessToken", data.access);
+      localStorage.setItem("refreshToken", data.refresh);
 
       // Store user information
       const user = {
@@ -47,21 +47,21 @@ export const LoginForm = ({ edirslug }) => {
         is_edir_head: data.is_edir_head,
         verification_status: data.verification_status,
       };
-      localStorage.setItem('user', JSON.stringify(user));
-      console.log('Primary role from API:', user.role);
-      console.log('User data:', user);
+      localStorage.setItem("user", JSON.stringify(user));
+      console.log("Primary role from API:", user.role);
+      console.log("User data:", user);
       // Redirection logic
-      if (user.verification_status === 'pending') {
-        navigate('/pending-approval'); 
+      if (user.verification_status === "pending") {
+        navigate("/pending-approval");
       } else if (user.is_edir_head) {
-        navigate(`/${edirslug}/head/dashboard`);
+        navigate(`/${user.edir.slug}/head/dashboard`);
       } else {
-        let dashboardPath = `/${edirslug}/member/dashboard`; 
+        let dashboardPath = `/${user.edir.slug}/member/dashboard`;
 
         if (user.role && user.role.length > 0) {
           const primaryRoleFromAPI = user.role.toUpperCase();
           if (ROLE_TO_PATH_SEGMENT[primaryRoleFromAPI]) {
-            dashboardPath = `/${edirslug}/${ROLE_TO_PATH_SEGMENT[primaryRoleFromAPI]}/dashboard`;
+            dashboardPath = `/${user.edir.slug}/${ROLE_TO_PATH_SEGMENT[primaryRoleFromAPI]}/dashboard`;
           }
         }
         navigate(dashboardPath);
@@ -69,7 +69,7 @@ export const LoginForm = ({ edirslug }) => {
     } catch (err) {
       setError(err.message);
 
-      console.error('Login component error:', err); 
+      console.error("Login component error:", err);
     } finally {
       setIsLoading(false);
     }
@@ -82,9 +82,12 @@ export const LoginForm = ({ edirslug }) => {
           {error}
         </div>
       )}
-      
+
       <div>
-        <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="username"
+          className="block text-sm font-medium text-gray-700"
+        >
           Username
         </label>
         <input
@@ -99,7 +102,10 @@ export const LoginForm = ({ edirslug }) => {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-gray-700"
+        >
           Password
         </label>
         <input
@@ -117,9 +123,9 @@ export const LoginForm = ({ edirslug }) => {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
         >
-          {isLoading ? 'Logging in...' : 'Login'}
+          {isLoading ? "Logging in..." : "Login"}
         </button>
       </div>
     </form>

@@ -33,7 +33,12 @@ export const parseErrorResponse = async (response) => {
 };
 
 export const login = async (edirslug, credentials) => {
-  const response = await fetch(`${API_BASE_URL}/${edirslug}/auth/login/`, {
+  let url = `${API_BASE_URL}/${edirslug}/auth/login/`;
+  if (!edirslug) {
+    edirslug = "";
+    url = `${API_BASE_URL}/auth/login/`;
+  }
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

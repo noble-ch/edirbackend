@@ -1,0 +1,78 @@
+from rest_framework import viewsets, mixins, status
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from drf_yasg.utils import swagger_auto_schema
+
+from ..permissions import IsEdirHead
+from ..serializers import MemberSerializer, MemberDetailSerializer
+from ..models import Member
+
+class MemberViewSet(mixins.RetrieveModelMixin,
+                   mixins.UpdateModelMixin,
+                   mixins.DestroyModelMixin,
+                   mixins.ListModelMixin,
+                   viewsets.GenericViewSet):
+    permission_classes = [IsAuthenticated, IsEdirHead]
+    queryset = Member.objects.all()
+    
+    def get_serializer_class(self):
+        if self.action == 'retrieve':
+            return MemberDetailSerializer
+        return MemberSerializer
+        
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Member.objects.all()
+        
+        status_filter = self.request.query_params.get('status', None)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+            
+        if user.is_superuser:
+            return queryset
+        
+        try:
+            member = Member.objects.get(user=user)
+            if member.role != 'regular_member':
+                return queryset.exclude(role='regular_member')
+        except Member.DoesNotExist:
+            return queryset.none()
+        
+        return queryset.filter(edir__head=user)
+    
+    @swagger_auto_schema(
+        operation_description="Get details of a specific member",
+        responses={200: MemberDetailSerializer}
+    )
+    def retrieve(self, request, *args, **kwargs):
+        return super().retrieve(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Update a member",
+        request_body=MemberSerializer,
+        responses={200: MemberSerializer}
+    )
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Partial update of a member",
+        request_body=MemberSerializer,
+        responses={200: MemberSerializer}
+    )
+    def partial_update(self, request, *args, **kwargs):
+        return super().partial_update(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="Delete a member",
+        responses={204: "No content"}
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+    
+    @swagger_auto_schema(
+        operation_description="List all members",
+        responses={200: MemberSerializer(many=True)}
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)

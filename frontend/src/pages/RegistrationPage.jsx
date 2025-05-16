@@ -7,7 +7,7 @@ export const RegisterPage = () => {
 
   return (
     <AuthLayout
-      title="Create a new account"
+      title= {`Register for ${edirslug }`}
       subtitle="Already have an account?"
       linkText="Sign in here"
       linkPath={`/${edirslug}/login`}

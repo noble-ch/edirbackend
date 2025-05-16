@@ -1,135 +1,201 @@
 from rest_framework.permissions import BasePermission
-# Import all models that this permission might check against
-from .models import Attendance, Member,  Event, Contribution, Expense, Edir
+from django.shortcuts import get_object_or_404
+from .models import Member
 
-class IsEdirHeadOrAdmin(BasePermission):
-    """
-    Allow access/modification only if the user is a superuser or
-    the head of the Edir associated with the object.
-    Handles Member, Event, Contribution, Expense, Role objects.
-    """
-    message = 'You do not have permission to perform this action on this object.' 
+class IsEdirMember(BasePermission):
+    """Allow access only to authenticated members of the Edir."""
+    message = 'You must be a member of this Edir to access this resource.'
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        
+        # For views that use edir_slug in URL
+        if hasattr(view, 'get_edir'):
+            edir = view.get_edir()
+            return Member.objects.filter(user=request.user, edir=edir).exists()
+        
+        return True  
 
     def has_object_permission(self, request, view, obj):
         if request.user.is_superuser:
             return True
+        
+        # Get the edir from different object types
+        edir = None
+        if hasattr(obj, 'edir'):
+            edir = obj.edir
+        elif hasattr(obj, 'event'):
+            edir = obj.event.edir
+        elif hasattr(obj, 'resource'):
+            edir = obj.resource.edir
 
-        target_edir = None
-        if isinstance(obj, Member):
-            target_edir = obj.edir
-        elif isinstance(obj, Event):
-            target_edir = obj.edir
-        elif isinstance(obj, Contribution):
-            if obj.event: 
-                target_edir = obj.event.edir
-        elif isinstance(obj, Expense):
-            if obj.event:
-                target_edir = obj.event.edir
-
-        elif isinstance(obj, Edir):
-             target_edir = obj
-
-        if not target_edir:
-            print(f"Warning: Could not determine target Edir for object type {type(obj)} in IsEdirHeadOrAdmin")
+        if not edir:
             return False
 
-        if not target_edir.head:
-            print(f"Warning: Target Edir {target_edir.id} has no head assigned.")
-            return False
-
-        return target_edir.head == request.user
-
+        return Member.objects.filter(user=request.user, edir=edir).exists()
 
 
 class IsEdirHead(BasePermission):
-    """Allow only edir head to perform actions (object-level)."""
+    """Allow only edir head to perform actions."""
     message = 'Only the Edir head can perform this action.'
 
     def has_permission(self, request, view):
-        return True
+        if request.user.is_superuser:
+            return True
+            
+        # For views that use edir_slug in URL
+        if hasattr(view, 'get_edir'):
+            edir = view.get_edir()
+            return edir.head == request.user if edir.head else False
+            
+        return True  # Fallback for object-level permissions
 
     def has_object_permission(self, request, view, obj):
         if request.user.is_superuser:
             return True
-
-        target_edir = None
-        # For Member approval/actions
-        if isinstance(obj, Member):
-            target_edir = obj.edir
-
-        if not target_edir or not target_edir.head:
-            return False
-
-        return target_edir.head == request.user
-
-
-class IsEventCreatorOrEdirHead(BasePermission):
-    """
-    Allows access if user is the object's creator (if applicable)
-    OR the head of the object's associated Edir.
-    """
-    message = 'You must be the creator or the Edir head to modify this.'
-
-    def has_object_permission(self, request, view, obj):
-        if not request.user.is_authenticated:
-            return False
-
-        target_edir = None
-        if isinstance(obj, Member): target_edir = obj.edir
-        elif isinstance(obj, Event): target_edir = obj.edir
-        elif isinstance(obj, Contribution): target_edir = obj.event.edir if obj.event else None
-        elif isinstance(obj, Expense): target_edir = obj.event.edir if obj.event else None
-        elif isinstance(obj, Edir): target_edir = obj
-
-        if target_edir and target_edir.head and target_edir.head == request.user:
-            return True
-
-        if isinstance(obj, Event):
-            return obj.created_by and obj.created_by.user == request.user
-
-        if isinstance(obj, Attendance): 
-             return obj.member and obj.member.user == request.user
-
-        if isinstance(obj, Contribution):
-            return obj.member and obj.member.user == request.user
-
-        if isinstance(obj, Expense):
-            return obj.spent_by and obj.spent_by.user == request.user
-
-        return False
-    
-
-class IsCoordinatorOrEdirHead(BasePermission):
-    """Check if user is Edir head or has Coordinator role"""
-    
-    def has_permission(self, request, view):
-        if not request.user.is_authenticated:
-            return False
             
-        if request.user.is_superuser:
-            return True
-            
-        try:
-            member = Member.objects.get(user=request.user)
-            return (member.edir.head == request.user or 
-                    member.role == 'COORDINATOR')
-        except Member.DoesNotExist:
-            return False
-
-    def has_object_permission(self, request, view, obj):
+        # Get the edir from different object types
+        edir = None
         if hasattr(obj, 'edir'):
             edir = obj.edir
-        elif hasattr(obj, 'task_group'):
-            edir = obj.task_group.edir
         elif hasattr(obj, 'event'):
             edir = obj.event.edir
-        else:
+        elif hasattr(obj, 'resource'):
+            edir = obj.resource.edir
+
+        if not edir or not edir.head:
+            return False
+            
+        return edir.head == request.user
+
+
+class IsTreasurerOrHead(BasePermission):
+    """Allow only treasurer or edir head to perform actions."""
+    message = 'You must be the treasurer or Edir head to perform this action.'
+
+    def has_permission(self, request, view):
+        if request.user.is_superuser:
+            return True
+            
+        # For views that use edir_slug in URL
+        if hasattr(view, 'get_edir'):
+            edir = view.get_edir()
+            try:
+                member = Member.objects.get(user=request.user, edir=edir)
+                return member.role == 'TREASURER' or edir.head == request.user
+            except Member.DoesNotExist:
+                return False
+                
+        return True  # Fallback for object-level permissions
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+            
+        # Get the edir from different object types
+        edir = None
+        if hasattr(obj, 'edir'):
+            edir = obj.edir
+        elif hasattr(obj, 'event'):
+            edir = obj.event.edir
+        elif hasattr(obj, 'resource'):
+            edir = obj.resource.edir
+
+        if not edir:
             return False
             
         try:
-            member = Member.objects.get(user=request.user)
-            return (edir.head == request.user or 
-                    (member.role == 'COORDINATOR' and
-                     member.edir == edir))
+            member = Member.objects.get(user=request.user, edir=edir)
+            return member.role == 'TREASURER' or edir.head == request.user
         except Member.DoesNotExist:
             return False
+
+
+class IsPropertyManagerOrHead(BasePermission):
+    """Allow only property manager or edir head to perform actions."""
+    message = 'You must be the property manager or Edir head to perform this action.'
+
+    def has_permission(self, request, view):
+        if request.user.is_superuser:
+            return True
+            
+        # For views that use edir_slug in URL
+        if hasattr(view, 'get_edir'):
+            edir = view.get_edir()
+            try:
+                member = Member.objects.get(user=request.user, edir=edir)
+                return member.role == 'PROPERTY_MANAGER' or edir.head == request.user
+            except Member.DoesNotExist:
+                return False
+                
+        return True  # Fallback for object-level permissions
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+            
+        # Get the edir from different object types
+        edir = None
+        if hasattr(obj, 'edir'):
+            edir = obj.edir
+        elif hasattr(obj, 'event'):
+            edir = obj.event.edir
+        elif hasattr(obj, 'resource'):
+            edir = obj.resource.edir
+
+        if not edir:
+            return False
+            
+        try:
+            member = Member.objects.get(user=request.user, edir=edir)
+            return member.role == 'PROPERTY_MANAGER' or edir.head == request.user
+        except Member.DoesNotExist:
+            return False
+
+
+class IsEventCoordinatorOrHead(BasePermission):
+    """Allow only event coordinator or edir head to perform actions."""
+    message = 'You must be the event coordinator or Edir head to perform this action.'
+
+    def has_permission(self, request, view):
+        if request.user.is_superuser:
+            return True
+            
+        # For views that use edir_slug in URL
+        if hasattr(view, 'get_edir'):
+            edir = view.get_edir()
+            try:
+                member = Member.objects.get(user=request.user, edir=edir)
+                return member.role == 'COORDINATOR' or edir.head == request.user
+            except Member.DoesNotExist:
+                return False
+                
+        return True  # Fallback for object-level permissions
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+            
+        # Get the edir from different object types
+        edir = None
+        if hasattr(obj, 'edir'):
+            edir = obj.edir
+        elif hasattr(obj, 'event'):
+            edir = obj.event.edir
+        elif hasattr(obj, 'resource'):
+            edir = obj.resource.edir
+
+        if not edir:
+            return False
+            
+        try:
+            member = Member.objects.get(user=request.user, edir=edir)
+            return member.role == 'COORDINATOR' or edir.head == request.user
+        except Member.DoesNotExist:
+            return False
+
+
+class IsResourceManagerOrHead(IsPropertyManagerOrHead):
+    """Alias for Property Manager permission (same role)"""
+    pass

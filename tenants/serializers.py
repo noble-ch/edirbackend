@@ -3,13 +3,14 @@
 from .models import Event, EventReport, TaskGroup ,Task
 from django.utils.timezone import now as timezone_now
 from rest_framework import serializers
-from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir
+from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir,Resource, ResourceAllocation, ResourceUsage
 from django.contrib.auth import get_user_model
 
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
+from django.core.validators import MinValueValidator
 
 
 
@@ -133,7 +134,6 @@ class UserLoginSerializer(serializers.Serializer):
                 'username': user.username,
                 'email': user.email,
                 'role': role,
-
                 'edir': self.get_edir({'username': username}),
                 'is_edir_head': self.get_is_edir_head({'username': username}),
                 'verification_status': verification_status,
@@ -307,23 +307,53 @@ class ExpenseSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'approved_by', 'approved_at', 'event', 'spent_by', 'receipt']
         
 class TaskGroupSerializer(serializers.ModelSerializer):
+    members = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Member.objects.all(),
+        required=False
+    )
+    member_names = serializers.SerializerMethodField()
+    shift_display = serializers.SerializerMethodField()
+
     class Meta:
         model = TaskGroup
-        fields = ['id', 'name', 'description', 'edir', 'event', 'created_by', 'created_at', 'is_active']
-        read_only_fields = ['id', 'created_by', 'created_at', 'edir']
+        fields = ['id', 'name', 'description', 'edir', 'event', 'members', 'member_names',
+                 'shift', 'shift_custom', 'shift_display', 'created_by', 'created_at', 'is_active']
+        read_only_fields = ['id', 'created_by', 'created_at', 'edir', 'member_names', 'shift_display']
+
+    def get_member_names(self, obj):
+        return [member.full_name for member in obj.members.all()]
+    
+    def get_shift_display(self, obj):
+        return obj.get_shift_display()
 
 class TaskSerializer(serializers.ModelSerializer):
-    assigned_to_name = serializers.CharField(source='assigned_to.full_name', read_only=True)
+    assigned_to = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Member.objects.all(),
+        required=True
+    )
+    assigned_to_names = serializers.SerializerMethodField()
     assigned_by_name = serializers.CharField(source='assigned_by.full_name', read_only=True)
     task_group_name = serializers.CharField(source='task_group.name', read_only=True)
+    shift_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = ['id', 'task_group', 'task_group_name', 'title', 'description', 
-                 'assigned_to', 'assigned_to_name', 'assigned_by', 'assigned_by_name',
-                 'due_date', 'priority', 'status', 'created_at', 'completed_at']
-        read_only_fields = ['id', 'assigned_by', 'created_at', 'completed_at', 'task_group']
+                 'assigned_to', 'assigned_to_names', 'assigned_by', 'assigned_by_name',
+                 'shift', 'shift_custom', 'shift_display', 'due_date', 'priority', 'status', 
+                 'created_at', 'completed_at']
+        read_only_fields = ['id', 'assigned_by', 'created_at', 'completed_at', 
+                          'task_group', 'assigned_to_names', 'shift_display']
 
+    def get_assigned_to_names(self, obj):
+        return [member.full_name for member in obj.assigned_to.all()]
+    
+    def get_shift_display(self, obj):
+        return obj.get_shift_display()
+    
+    
 class EventReportSerializer(serializers.ModelSerializer):
     prepared_by_name = serializers.CharField(source='prepared_by.full_name', read_only=True)
     event_title = serializers.CharField(source='event.title', read_only=True)
@@ -334,3 +364,170 @@ class EventReportSerializer(serializers.ModelSerializer):
                  'attendance_summary', 'financial_summary', 'notes',
                  'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at', 'event', 'prepared_by']
+        
+
+
+from rest_framework import serializers
+from .models import Resource, ResourceAllocation, ResourceUsage
+from django.core.validators import MinValueValidator
+
+class ResourceSerializer(serializers.ModelSerializer):
+    edir_slug = serializers.CharField(source='edir.slug', read_only=True)
+    current_value = serializers.SerializerMethodField(read_only=True)
+    condition_display = serializers.CharField(source='get_condition_display', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+    class Meta:
+        model = Resource
+        fields = '__all__'
+        read_only_fields = (
+            'edir', 
+            'created_at', 
+            'updated_at', 
+            'current_value',
+            'condition_display',
+            'category_display'
+        )
+        extra_kwargs = {
+            'quantity': {'min_value': 1},
+            'purchase_price': {'min_value': 0},
+            'rental_price_per_day': {'min_value': 0},
+            'replacement_cost': {'min_value': 0},
+            'expected_lifespan': {'min_value': 1},
+        }
+
+    def get_current_value(self, obj):
+        return obj.current_value
+
+    def validate(self, data):
+        if data.get('purchase_date') and not data.get('purchase_price'):
+            raise serializers.ValidationError(
+                "Purchase price is required when purchase date is provided"
+            )
+        return data
+
+
+class ResourceAllocationSerializer(serializers.ModelSerializer):
+    edir_slug = serializers.CharField(source='resource.edir.slug', read_only=True)
+    member_name = serializers.CharField(source='member.full_name', read_only=True)
+    resource_name = serializers.CharField(source='resource.name', read_only=True)
+    event_title = serializers.CharField(source='event.title', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    duration_days = serializers.SerializerMethodField(read_only=True)
+    resource_usage_id = serializers.SerializerMethodField(read_only=True)
+    calculated_cost = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        read_only=True
+    )
+
+    def get_resource_usage_id(self, obj):
+        try:
+            return obj.usage.id
+        except AttributeError:
+            return None
+    class Meta:
+        model = ResourceAllocation
+        fields = '__all__'
+        read_only_fields = (
+            'created_at', 
+            'member', 
+            'status_changed_at',
+            'calculated_cost',
+            'duration_days',
+            'status_display',
+        )
+        extra_kwargs = {
+            'quantity': {'min_value': 1},
+            'calculated_cost': {'min_value': 0},
+            'actual_cost': {'min_value': 0},
+            'deposit_paid': {'min_value': 0},
+        }
+
+    def get_duration_days(self, obj):
+        return obj.duration_days
+
+    def validate(self, data):
+        if 'start_date' in data and 'end_date' in data:
+            if data['start_date'] >= data['end_date']:
+                raise serializers.ValidationError(
+                    "End date must be after start date"
+                )
+        
+        if 'resource' in data and 'quantity' in data:
+            if data['quantity'] > data['resource'].quantity:
+                raise serializers.ValidationError(
+                    f"Requested quantity exceeds available quantity ({data['resource'].quantity})"
+                )
+        
+        return data
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+    def create(self, validated_data):
+        validated_data['member'] = self.context['request'].user.member
+        return super().create(validated_data)
+
+
+class ResourceUsageSerializer(serializers.ModelSerializer):
+    edir_slug = serializers.CharField(source='allocation.resource.edir.slug', read_only=True)
+    resource_name = serializers.CharField(source='allocation.resource.name', read_only=True)
+    member_name = serializers.CharField(source='allocation.member.full_name', read_only=True)
+    event_title = serializers.CharField(source='allocation.event.title', read_only=True)
+
+    pre_use_condition_display = serializers.CharField(
+        source='get_pre_use_condition_display', 
+        read_only=True
+    )
+    post_use_condition_display = serializers.CharField(
+        source='get_post_use_condition_display', 
+        read_only=True
+    )
+    actual_duration_days = serializers.SerializerMethodField(read_only=True)
+    condition_changed = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = ResourceUsage
+        fields = '__all__'
+        read_only_fields = (
+            'created_at', 
+            'updated_at',
+            'actual_duration_days',
+            'condition_changed',
+            'pre_use_condition_display',
+            'post_use_condition_display'
+        )
+        extra_kwargs = {
+            'requested_quantity': {'min_value': 1},
+            'returned_quantity': {'min_value': 0},
+            'damaged_quantity': {'min_value': 0},
+            'additional_charges': {'min_value': 0},
+            'damage_charges': {'min_value': 0},
+            'deposit_returned': {'min_value': 0},
+        }
+
+    def get_actual_duration_days(self, obj):
+        return obj.actual_duration_days
+
+    def get_condition_changed(self, obj):
+        return obj.condition_changed
+
+    def validate(self, data):
+        allocation = self.instance.allocation if self.instance else data.get('allocation')
+        
+        if 'returned_quantity' in data and 'damaged_quantity' in data:
+            if data['returned_quantity'] + data['damaged_quantity'] > allocation.quantity:
+                raise serializers.ValidationError(
+                    "Returned + damaged quantity cannot exceed allocated quantity"
+                )
+        
+        if 'actual_start' in data and 'actual_end' in data:
+            if data['actual_start'] and data['actual_end']:
+                if data['actual_start'] > data['actual_end']:
+                    raise serializers.ValidationError(
+                        "Actual end time must be after actual start time"
+                    )
+        
+        return data

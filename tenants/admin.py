@@ -5,6 +5,11 @@ from django.db import transaction
 from django.utils import timezone
 from .models import User, Edir, EdirRequest, Member
 from .models import Event, Attendance
+from django.contrib.auth import get_user_model
+from .models import Resource, ResourceAllocation, ResourceUsage
+
+User = get_user_model()
+
 
 admin.site.register(User, UserAdmin)
 
@@ -33,8 +38,6 @@ class EdirRequestAdmin(admin.ModelAdmin):
     get_status.short_description = 'Status'
 
     def save_model(self, request, obj, form, change):
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
 
         if change and obj.status == 'approved' and not obj.processed:
             with transaction.atomic():
@@ -101,3 +104,15 @@ class EventAdmin(admin.ModelAdmin):
 class AttendanceAdmin(admin.ModelAdmin):
     list_display = ('id',)
   
+@admin.register(Resource)
+class ResourceAdmin(admin.ModelAdmin):
+    list_display = ('id',)
+   
+
+@admin.register(ResourceAllocation)
+class ResourceAllocationAdmin(admin.ModelAdmin):
+    list_display = ('id',)
+  
+@admin.register(ResourceUsage)
+class ResourceUsageAdmin(admin.ModelAdmin):
+    list_display = ('id',)

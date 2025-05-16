@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 import re
 from django.utils import timezone
-
+from django.core.validators import MinValueValidator
 
 class User(AbstractUser):
     pass
@@ -107,7 +107,14 @@ class Member(models.Model):
     def is_approved(self):
         return self.status == 'approved'
 
-    
+    def is_head(self):
+        return self.edir.head == self
+
+    def is_admin(self):
+        return self.role == 'ADMIN'
+
+    def is_head_or_admin(self):
+        return self.is_head() or self.is_admin()
     
 class Spouse(models.Model):
     member = models.OneToOneField(Member, on_delete=models.CASCADE, related_name='spouse')
@@ -235,13 +242,29 @@ class Expense(models.Model):
         return f"{self.description} - {self.amount}"
     
 class TaskGroup(models.Model):
+    SHIFT_CHOICES = [
+        ('morning', 'Morning (8AM-12PM)'),
+        ('afternoon', 'Afternoon (12PM-4PM)'),
+        ('evening', 'Evening (4PM-8PM)'),
+        ('night', 'Night (8PM-12AM)'),
+        ('custom', 'Custom Shift'),
+    ]
+    
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     edir = models.ForeignKey(Edir, on_delete=models.CASCADE)
-    event = models.ForeignKey(Event, on_delete=models.CASCADE, null=True, blank=True)  # New field
-    created_by = models.ForeignKey(Member, on_delete=models.CASCADE)
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, null=True, blank=True)
+    members = models.ManyToManyField(Member, related_name='task_groups')
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True, null=True)
+    shift_custom = models.CharField(max_length=100, blank=True, null=True)
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='created_task_groups')
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+
+    def get_shift_display(self):
+        if self.shift == 'custom':
+            return self.shift_custom
+        return dict(self.SHIFT_CHOICES).get(self.shift, '')
 
 class Task(models.Model):
     PRIORITY_CHOICES = [
@@ -255,11 +278,14 @@ class Task(models.Model):
         ('completed', 'Completed'),
         ('cancelled', 'Cancelled'),
     ]
+    SHIFT_CHOICES = TaskGroup.SHIFT_CHOICES
 
     task_group = models.ForeignKey(TaskGroup, on_delete=models.CASCADE, related_name='tasks')
     title = models.CharField(max_length=200)
     description = models.TextField()
-    assigned_to = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='assigned_tasks')
+    assigned_to = models.ManyToManyField(Member, related_name='assigned_tasks')
+    shift = models.CharField(max_length=20, choices=SHIFT_CHOICES, blank=True, null=True)
+    shift_custom = models.CharField(max_length=100, blank=True, null=True)
     assigned_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='assigned_tasks_by')
     due_date = models.DateTimeField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
@@ -267,8 +293,10 @@ class Task(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
-    def __str__(self):
-        return f"{self.title} - {self.get_status_display()}"
+    def get_shift_display(self):
+        if self.shift == 'custom':
+            return self.shift_custom
+        return dict(self.SHIFT_CHOICES).get(self.shift, '')
 
 class EventReport(models.Model):
     event = models.OneToOneField(Event, on_delete=models.CASCADE, related_name='report')
@@ -281,3 +309,338 @@ class EventReport(models.Model):
 
     def __str__(self):
         return f"Report for {self.event.title}"
+    
+
+
+
+
+
+class Resource(models.Model):
+    CATEGORY_CHOICES = [
+        ('equipment', 'Equipment'),
+        ('venue', 'Venue'),
+        ('supply', 'Supply'),
+        ('service', 'Service'),
+        ('other', 'Other'),
+    ]
+    
+    CONDITION_CHOICES = [
+        ('new', 'New'),
+        ('excellent', 'Excellent'),
+        ('good', 'Good'),
+        ('fair', 'Fair'),
+        ('poor', 'Poor'),
+        ('broken', 'Broken'),
+    ]
+    
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='resources')
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    available = models.BooleanField(default=True)
+    
+    # Pricing fields
+    purchase_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    rental_price_per_day = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    replacement_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    # Additional details
+    condition = models.CharField(max_length=20, choices=CONDITION_CHOICES, default='good')
+    purchase_date = models.DateField(null=True, blank=True)
+    expected_lifespan = models.PositiveIntegerField(null=True, blank=True, help_text="Expected lifespan in months")
+    serial_number = models.CharField(max_length=100, blank=True)
+    location = models.CharField(max_length=200, blank=True)
+    notes = models.TextField(blank=True)
+    
+    # Maintenance fields
+    last_maintenance_date = models.DateField(null=True, blank=True)
+    maintenance_frequency = models.PositiveIntegerField(
+        null=True, 
+        blank=True, 
+        help_text="Recommended maintenance frequency in days"
+    )
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.edir.name})"
+
+    @property
+    def current_value(self):
+        """Calculate depreciated value based on purchase date and lifespan"""
+        if self.purchase_price and self.purchase_date and self.expected_lifespan:
+            from datetime import date
+            from dateutil.relativedelta import relativedelta
+            
+            today = date.today()
+            months_used = relativedelta(today, self.purchase_date).months
+            if months_used >= self.expected_lifespan:
+                return 0
+            depreciation = (self.purchase_price / self.expected_lifespan) * months_used
+            return max(0, self.purchase_price - depreciation)
+        return None
+
+
+class ResourceAllocation(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('returned', 'Returned'),
+        ('rented', 'rented'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    resource = models.ForeignKey(Resource, on_delete=models.CASCADE, related_name='allocations')
+    event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='resource_allocations')
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='resource_requests')
+    quantity = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)])
+    
+    # Date fields
+    requested_at = models.DateTimeField(auto_now_add=True)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    
+    # Status fields
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status_changed_at = models.DateTimeField(auto_now=True)
+    
+    # Financial fields
+    calculated_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    actual_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    deposit_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
+    # Additional information
+    purpose = models.TextField()
+    special_requirements = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        Member, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='approved_allocations'
+    )
+    approval_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.resource.name} for {self.event.title}"
+
+    def save(self, *args, **kwargs):
+        """Calculate cost when saving"""
+        if self.resource.rental_price_per_day and self.start_date and self.end_date:
+            from datetime import timedelta
+            rental_days = (self.end_date - self.start_date).days + 1
+            self.calculated_cost = self.resource.rental_price_per_day * rental_days * self.quantity
+        super().save(*args, **kwargs)
+
+    @property
+    def duration_days(self):
+        """Return allocation duration in days"""
+        if self.start_date and self.end_date:
+            return (self.end_date - self.start_date).days + 1
+        return 0
+
+
+class ResourceUsage(models.Model):
+    USAGE_CONDITION_CHOICES = [
+        ('excellent', 'Excellent - No visible wear'),
+        ('good', 'Good - Minor wear'),
+        ('fair', 'Fair - Noticeable wear but functional'),
+        ('poor', 'Poor - Needs repair soon'),
+        ('damaged', 'Damaged - Needs immediate repair'),
+    ]
+    
+    allocation = models.OneToOneField(ResourceAllocation, on_delete=models.CASCADE, related_name='usage')
+    
+    # Actual usage times
+    actual_start = models.DateTimeField(null=True, blank=True)
+    actual_end = models.DateTimeField(null=True, blank=True)
+    
+    # Condition tracking
+    pre_use_condition = models.CharField(max_length=20, choices=USAGE_CONDITION_CHOICES)
+    post_use_condition = models.CharField(max_length=20, choices=USAGE_CONDITION_CHOICES)
+    condition_notes = models.TextField(blank=True)
+    
+    # Quantity tracking
+    requested_quantity = models.PositiveIntegerField()
+    returned_quantity = models.PositiveIntegerField(default=0)
+    damaged_quantity = models.PositiveIntegerField(default=0)
+    
+    # Financials
+    additional_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    damage_charges = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    deposit_returned = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    # Administrative
+    checked_out_by = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='checked_out_resources'
+    )
+    checked_in_by = models.ForeignKey(
+        Member,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='checked_in_resources'
+    )
+    usage_notes = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Usage record for {self.allocation.resource.name}"
+
+    @property
+    def actual_duration_days(self):
+        """Return actual usage duration in days"""
+        if self.actual_start and self.actual_end:
+            return (self.actual_end - self.actual_start).days + 1
+        return 0
+
+    @property
+    def condition_changed(self):
+        """Check if condition changed during usage"""
+        return self.pre_use_condition != self.post_use_condition
+    
+ 
+
+
+
+
+    
+
+
+class Payment(models.Model):
+    PAYMENT_TYPE_CHOICES = [
+        ('contribution', 'Event Contribution'),
+        ('monthly', 'Monthly Fee'),
+        ('penalty', 'Penalty'),
+        ('donation', 'Donation'),
+        ('other', 'Other'),
+    ]
+    
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    ]
+    
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='payments')
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES)
+    payment_method = models.CharField(max_length=20, choices=Contribution.PAYMENT_METHOD_CHOICES)
+    payment_date = models.DateField()
+    transaction_reference = models.CharField(max_length=100, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
+    verified_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, 
+                                  related_name='verified_payments')
+    verified_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    # Link to related objects
+    contribution = models.OneToOneField(Contribution, on_delete=models.SET_NULL, null=True, blank=True)
+    event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.member.full_name} - {self.amount} ({self.get_payment_type_display()})"
+
+class Penalty(models.Model):
+    PENALTY_TYPE_CHOICES = [
+        ('late_payment', 'Late Payment'),
+        ('absence', 'Event Absence'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('waived', 'Waived'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='penalties')
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='penalties')
+    penalty_type = models.CharField(max_length=20, choices=PENALTY_TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    reason = models.TextField()
+    due_date = models.DateField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment = models.OneToOneField(Payment, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, related_name='created_penalties')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.member.full_name} - {self.amount} ({self.get_penalty_type_display()})"
+
+class Reminder(models.Model):
+    REMINDER_TYPE_CHOICES = [
+        ('payment_due', 'Payment Due'),
+        ('event_reminder', 'Event Reminder'),
+        ('task_reminder', 'Task Reminder'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('failed', 'Failed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    CHANNEL_CHOICES = [
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+        ('push', 'Push Notification'),
+        ('all', 'All Channels'),
+    ]
+    
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='reminders')
+    reminder_type = models.CharField(max_length=20, choices=REMINDER_TYPE_CHOICES)
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    recipients = models.ManyToManyField(Member, related_name='reminders')
+    scheduled_time = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default='email')
+    related_event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
+    related_payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, related_name='created_reminders')
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.get_reminder_type_display()} - {self.subject}"
+
+class FinancialReport(models.Model):
+    REPORT_TYPE_CHOICES = [
+        ('monthly', 'Monthly'),
+        ('event', 'Event'),
+        ('annual', 'Annual'),
+        ('custom', 'Custom Period'),
+    ]
+    
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='financial_reports')
+    report_type = models.CharField(max_length=20, choices=REPORT_TYPE_CHOICES)
+    title = models.CharField(max_length=200)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    report_data = models.JSONField()
+    generated_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, related_name='generated_reports')
+    generated_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"{self.title} - {self.edir.name}"

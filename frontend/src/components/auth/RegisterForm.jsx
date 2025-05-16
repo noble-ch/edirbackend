@@ -310,13 +310,13 @@ export const RegisterForm = ({ edirslug }) => {
           <>
             <div>
               <label htmlFor="registration_type" className="flex items-center text-sm font-medium text-gray-700">
-                <Users className="mr-2 h-4 w-4" /> Registration Type
+                <Users className="mr-2 h-4 w-4" /> Marital Status
                 <FieldTooltip info="Choose 'Single' for individual registration or 'Family' to include spouse and dependents" />
               </label>
               <select id="registration_type" name="registration_type" value={userData.registration_type} onChange={handleChange} 
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--pigment-green)] focus:border-[var(--pigment-green)] sm:text-sm rounded-md">
-                <option value="single">Single</option>
-                <option value="family">Family</option>
+                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[var(--pigment-green)] focus:border-[var(--pigment-green)] sm:text-sm rounded-md">
+                <option value="single">Single Person Regisration</option>
+                <option value="family">Family Registration</option>
               </select>
             </div>
             {userData.registration_type === 'family' && (
@@ -684,8 +684,8 @@ export const RegisterForm = ({ edirslug }) => {
     <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-gray-900">Register for {edirslug}</h1>
-          <p className="mt-2 text-sm text-gray-600">Complete the form below to join our community</p>
+          {/* <h1 className="text-3xl font-extrabold text-gray-900">Register for {edirslug}</h1> */}
+          {/* <p className="mt-2 text-sm text-gray-600">Complete the form below to join our community</p> */}
         </div>
 
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">

@@ -11,6 +11,8 @@ from .views import (
     UserLoginAPIView, 
     MemberRegistrationViewSet,
     MemberViewSet,
+    ResourceViewSet, ResourceAllocationViewSet, ResourceUsageViewSet
+
 )
 
 router = DefaultRouter()
@@ -23,14 +25,22 @@ router.register(r'events/(?P<event_id>\d+)/attendances', AttendanceViewSet, base
 router.register(r'events/(?P<event_id>\d+)/contributions', ContributionViewSet, basename='contribution')
 router.register(r'events/(?P<event_id>\d+)/expenses', ExpenseViewSet, basename='expense')
 
+# Task Group URLs nested under events
+router.register(r'events/(?P<event_id>\d+)/task-groups', TaskGroupViewSet, basename='task-group')
+router.register(r'events/(?P<event_id>\d+)/task-groups/(?P<task_group_id>\d+)/tasks', TaskViewSet, basename='task')
 
-# Coordinator-specific URLs
-router.register(r'task-groups', TaskGroupViewSet, basename='task-group')
-router.register(r'task-groups/(?P<task_group_id>\d+)/tasks', TaskViewSet, basename='task')
+# Reports
 router.register(r'events/(?P<event_id>\d+)/reports', EventReportViewSet, basename='event-report')
+
+# Resource URLs
+router.register(r'resources', ResourceViewSet, basename='resource')
+router.register(r'resource-allocations', ResourceAllocationViewSet, basename='resourceallocation')
+router.register(r'resource-usage', ResourceUsageViewSet, basename='resourceusage')
 
 
 urlpatterns = [
     path('auth/login/', UserLoginAPIView.as_view(), name='edir-user-login'),
     path('members/create/', member_register, name='member-register'),
+
+
 ] + router.urls
