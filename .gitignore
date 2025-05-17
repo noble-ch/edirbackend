@@ -28,3 +28,6 @@ env/
 
 /static/
 /staticfiles/
+
+/tenants/views/financial.py
+/tenants/views/transaction.py

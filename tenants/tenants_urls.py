@@ -38,10 +38,10 @@ router.register(r'resource-allocations', ResourceAllocationViewSet, basename='re
 router.register(r'resource-usage', ResourceUsageViewSet, basename='resourceusage')
 
 #financial URLs
-router.register(r'payments', PaymentViewSet, basename='payment')
-router.register(r'penalties', PenaltyViewSet, basename='penalty')
-router.register(r'reminders', ReminderViewSet, basename='reminder')
-router.register(r'financial-reports', FinancialReportViewSet, basename='financialreport')
+# router.register(r'payments', PaymentViewSet, basename='payment')
+# router.register(r'penalties', PenaltyViewSet, basename='penalty')
+# router.register(r'reminders', ReminderViewSet, basename='reminder')
+# router.register(r'financial-reports', FinancialReportViewSet, basename='financialreport')
 
 
 urlpatterns = [
