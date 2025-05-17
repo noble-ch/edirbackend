@@ -142,12 +142,6 @@ def verify_cbe(reference_id_part: str, account_suffix: str) -> VerifyResult:
         content_type = response.headers.get('Content-Type', '').lower()
         if 'application/pdf' in content_type or 'application/octet-stream' in content_type:
             logger.info("✅ Direct fetch success, parsing PDF")
-            try:
-                with open("debug_fetched_receipt.pdf", "wb") as f:
-                    f.write(response.content)
-                logger.info("ℹ️ Saved fetched PDF to debug_fetched_receipt.pdf")
-            except Exception as e:
-                logger.error(f"Could not save debug PDF: {e}")
             return parse_cbe_receipt(response.content)
         else:
             logger.warning(f"⚠️ Direct fetch did not return PDF. Content-Type: {content_type}. Body starts with: {response.text[:200]}")
