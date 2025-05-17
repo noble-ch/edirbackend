@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../../api/api";
+import { api } from "../../lib/api";
 import { useParams } from "react-router-dom";
 import {
   Table,
@@ -117,9 +117,11 @@ export const ResourceUsageTracker = () => {
               <TableCell>{record?.event_title || "N/A"}</TableCell>
               <TableCell>{record?.member_name || "N/A"}</TableCell>
               <TableCell>
-                {record.actual_start
-                  ? formatDate(record.actual_start)
-                  :  <span className="text-yellow-600">pending</span>}
+                {record.actual_start ? (
+                  formatDate(record.actual_start)
+                ) : (
+                  <span className="text-yellow-600">pending</span>
+                )}
               </TableCell>
               <TableCell>
                 {record.actual_end ? (
@@ -130,9 +132,9 @@ export const ResourceUsageTracker = () => {
               </TableCell>
               <TableCell>
                 {record.actual_start
-                  ? (record.post_use_condition ||
+                  ? record.post_use_condition ||
                     record.pre_use_condition ||
-                    "Good")
+                    "Good"
                   : "N/A"}
               </TableCell>
               <TableCell>

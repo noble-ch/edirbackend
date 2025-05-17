@@ -1,9 +1,7 @@
 # tenants/serializers.py
 
-from .models import Event, EventReport, TaskGroup ,Task
 from django.utils.timezone import now as timezone_now
 from rest_framework import serializers
-from .models import Attendance, Contribution, Expense, Member, Spouse, FamilyMember, Representative, Edir,Resource, ResourceAllocation, ResourceUsage
 from django.contrib.auth import get_user_model
 
 from django.contrib.auth import authenticate
@@ -12,6 +10,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils.translation import gettext_lazy as _
 from django.core.validators import MinValueValidator
 
+from .models import Attendance, Contribution, EdirRequest, Expense, Member, Spouse, FamilyMember, Representative, Edir,Resource, ResourceAllocation, ResourceUsage
+from .models import Event, EventReport, TaskGroup ,Task
+from .models import Payment, Penalty, Reminder, FinancialReport
 
 
 
@@ -531,3 +532,87 @@ class ResourceUsageSerializer(serializers.ModelSerializer):
                     )
         
         return data
+    
+    
+
+class PaymentSerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.full_name', read_only=True)
+    edir_name = serializers.CharField(source='edir.name', read_only=True)
+    payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = Payment
+        fields = '__all__'
+        read_only_fields = ('created_at', 'verified_at','edir','member')
+
+class PenaltySerializer(serializers.ModelSerializer):
+    member_name = serializers.CharField(source='member.full_name', read_only=True)
+    edir_name = serializers.CharField(source='edir.name', read_only=True)
+    penalty_type_display = serializers.CharField(source='get_penalty_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    
+    class Meta:
+        model = Penalty
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at','edir')
+
+class ReminderSerializer(serializers.ModelSerializer):
+    edir_name = serializers.CharField(source='edir.name', read_only=True)
+    reminder_type_display = serializers.CharField(source='get_reminder_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    channel_display = serializers.CharField(source='get_channel_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
+    
+    class Meta:
+        model = Reminder
+        fields = '__all__'
+        read_only_fields = ('created_at', 'sent_at','edir')
+
+class FinancialReportSerializer(serializers.ModelSerializer):
+    edir_name = serializers.CharField(source='edir.name', read_only=True)
+    report_type_display = serializers.CharField(source='get_report_type_display', read_only=True)
+    generated_by_name = serializers.CharField(source='generated_by.full_name', read_only=True)
+    start_date = serializers.DateField(format="%Y-%m-%d")
+    end_date = serializers.DateField(format="%Y-%m-%d")
+    generated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
+    
+    class Meta:
+        model = FinancialReport
+        fields = '__all__'
+        read_only_fields = ('generated_at',)
+        
+
+class EdirRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EdirRequest
+        fields = [
+            'id', 'full_name', 'username', 'email', 'password',
+            'edir_name', 'edir_description', 'proposed_cbe_account',
+            'proposed_account_holder', 'proposed_address',
+            'proposed_initial_deposit', 'created_at', 'status'
+        ]
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'status': {'read_only': True},
+            'created_at': {'read_only': True},
+        }
+
+    def validate_proposed_cbe_account(self, value):
+        if value and not value.isdigit() or len(value) != 13:
+            raise serializers.ValidationError("CBE account number must be exactly 13 digits")
+        return value
+
+    def create(self, validated_data):
+        return EdirRequest.objects.create(**validated_data)
+    
+class EdirRequestApprovalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EdirRequest
+        fields = ['status']
+        read_only_fields = ['processed']
+
+    def validate_status(self, value):
+        if value not in ['approved', 'rejected']:
+            raise serializers.ValidationError("Status must be either 'approved' or 'rejected'")
+        return value

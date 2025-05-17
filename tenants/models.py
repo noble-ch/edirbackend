@@ -5,11 +5,10 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 import re
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 
 class User(AbstractUser):
     pass
-
 class Edir(models.Model):
     name = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
@@ -18,10 +17,50 @@ class Edir(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     head = models.OneToOneField('User', null=True, blank=True, on_delete=models.SET_NULL, related_name='owned_edir')
     unique_link = models.CharField(max_length=255, unique=True, blank=True)
+    
+    # New financial fields
+    cbe_account_number = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        validators=[RegexValidator(
+            regex=r'^\d{13}$',
+            message='CBE account number must be 13 digits'
+        )]
+    )
+    account_holder_name = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Name as it appears on the bank account"
+    )
+    address = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Physical address of the Edir"
+    )
+    initial_deposit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        help_text="Initial deposit amount in ETB"
+    )
+    current_balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        help_text="Current balance in ETB"
+    )
 
     def clean(self):
         if not re.match(r'^[a-zA-Z0-9\s\-\.]+$', self.name):
             raise ValidationError("Name can only contain letters, numbers, spaces, hyphens, and periods.")
+        
+        # Validate CBE account number if provided
+        if self.cbe_account_number and not re.match(r'^\d{13}$', self.cbe_account_number):
+            raise ValidationError({
+                'cbe_account_number': 'CBE account number must be exactly 13 digits'
+            })
     
     def save(self, *args, **kwargs):
         self.full_clean()
@@ -42,10 +81,21 @@ class Edir(models.Model):
                 self.unique_link = f"http://{settings.EDIR_DOMAIN}/{self.slug}-{count}/"
                 count += 1
 
+        # Set initial balance if this is a new record
+        if not self.pk and self.initial_deposit > 0:
+            self.current_balance = self.initial_deposit
+
         super().save(*args, **kwargs)
+
+    def update_balance(self, amount):
+        """Helper method to safely update the balance"""
+        self.current_balance = F('current_balance') + amount
+        self.save(update_fields=['current_balance'])
+        self.refresh_from_db()
 
     def __str__(self):
         return self.name
+
 
 class EdirRequest(models.Model):
     STATUS_CHOICES = [
@@ -60,9 +110,83 @@ class EdirRequest(models.Model):
     password = models.CharField(max_length=128)
     edir_name = models.CharField(max_length=100)
     edir_description = models.TextField()
+    
+    # New fields in EdirRequest to match Edir
+    proposed_cbe_account = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True,
+        validators=[RegexValidator(
+            regex=r'^\d{13}$',
+            message='CBE account number must be 13 digits'
+        )],
+        help_text="Proposed CBE account number for the Edir"
+    )
+    proposed_account_holder = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Proposed account holder name"
+    )
+    proposed_address = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Proposed physical address of the Edir"
+    )
+    proposed_initial_deposit = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0.00,
+        help_text="Proposed initial deposit amount in ETB"
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     processed = models.BooleanField(default=False)
+
+    def clean(self):
+        # Validate proposed CBE account number if provided
+        if self.proposed_cbe_account and not re.match(r'^\d{13}$', self.proposed_cbe_account):
+            raise ValidationError({
+                'proposed_cbe_account': 'CBE account number must be exactly 13 digits'
+            })
+
+    def approve(self):
+        """Method to approve the request and create the Edir"""
+        if self.processed:
+            raise ValueError("This request has already been processed")
+        
+        # Create the Edir with all the provided information
+        edir = Edir(
+            name=self.edir_name,
+            description=self.edir_description,
+            approved=True,
+            cbe_account_number=self.proposed_cbe_account,
+            account_holder_name=self.proposed_account_holder,
+            address=self.proposed_address,
+            initial_deposit=self.proposed_initial_deposit
+        )
+        edir.save()
+        
+        # Create the user
+        user = User.objects.create_user(
+            username=self.username,
+            email=self.email,
+            password=self.password,
+            first_name=self.full_name.split()[0],
+            last_name=' '.join(self.full_name.split()[1:]) if len(self.full_name.split()) > 1 else ''
+        )
+        
+        # Set the user as the head of the Edir
+        edir.head = user
+        edir.save()
+        
+        # Mark the request as processed
+        self.status = 'approved'
+        self.processed = True
+        self.save()
+        
+        return edir
 
     def __str__(self):
         return f"{self.edir_name} - {self.username}"

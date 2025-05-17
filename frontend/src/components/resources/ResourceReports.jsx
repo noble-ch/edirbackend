@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../../api/api";
+import { api } from "../../lib/api";
 import { useParams } from "react-router-dom";
 import {
   BarChart,

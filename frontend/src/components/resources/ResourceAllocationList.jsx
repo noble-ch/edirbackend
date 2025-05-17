@@ -1,6 +1,6 @@
 // components/ResourceAllocationList.jsx
 import { useState, useEffect } from "react";
-import { api } from "../../api/api";
+import { api } from "../../lib/api";
 import { useParams } from "react-router-dom";
 import {
   Table,

@@ -11,7 +11,7 @@ from .views import (
     UserLoginAPIView, 
     MemberRegistrationViewSet,
     MemberViewSet,
-    ResourceViewSet, ResourceAllocationViewSet, ResourceUsageViewSet
+    ResourceViewSet, ResourceAllocationViewSet, ResourceUsageViewSet,PaymentViewSet, PenaltyViewSet, ReminderViewSet, FinancialReportViewSet
 
 )
 
@@ -36,6 +36,12 @@ router.register(r'events/(?P<event_id>\d+)/reports', EventReportViewSet, basenam
 router.register(r'resources', ResourceViewSet, basename='resource')
 router.register(r'resource-allocations', ResourceAllocationViewSet, basename='resourceallocation')
 router.register(r'resource-usage', ResourceUsageViewSet, basename='resourceusage')
+
+#financial URLs
+router.register(r'payments', PaymentViewSet, basename='payment')
+router.register(r'penalties', PenaltyViewSet, basename='penalty')
+router.register(r'reminders', ReminderViewSet, basename='reminder')
+router.register(r'financial-reports', FinancialReportViewSet, basename='financialreport')
 
 
 urlpatterns = [

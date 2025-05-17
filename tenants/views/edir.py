@@ -1,42 +1,143 @@
-from rest_framework.views import APIView
+from rest_framework import viewsets, status
 from rest_framework.response import Response
-from rest_framework.renderers import TemplateHTMLRenderer
+from ..models import EdirRequest,Edir,Member
+from ..serializers import EdirRequestSerializer, EdirRequestApprovalSerializer
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAdminUser
+from django.db import transaction
 
-from ..forms import EdirRequestForm
+from django.contrib.auth import get_user_model
 
-class EdirRequestAPIView(APIView):
-    renderer_classes = [TemplateHTMLRenderer]
-    template_name = 'tenants/edir_request.html'
+User = get_user_model()
+
+class EdirRequestViewSet(viewsets.ModelViewSet):
+
+    queryset = EdirRequest.objects.all()
+    serializer_class = EdirRequestSerializer
+    http_method_names = ['get', 'post','patch']  # Only allow GET and POST
+
 
     @swagger_auto_schema(
-        operation_description="Submit a request to create a new Edir",
+        operation_description="Create a new Edir request",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
+            required=['full_name', 'username', 'email', 'password', 'edir_name', 'edir_description'],
             properties={
-                'name': openapi.Schema(type=openapi.TYPE_STRING, description='Name of the Edir'),
-                'description': openapi.Schema(type=openapi.TYPE_STRING, description='Description of the Edir'),
-                'location': openapi.Schema(type=openapi.TYPE_STRING, description='Location of the Edir'),
+                'full_name': openapi.Schema(type=openapi.TYPE_STRING),
+                'username': openapi.Schema(type=openapi.TYPE_STRING),
+                'email': openapi.Schema(type=openapi.TYPE_STRING, format=openapi.FORMAT_EMAIL),
+                'password': openapi.Schema(type=openapi.TYPE_STRING, writeOnly=True),
+                'edir_name': openapi.Schema(type=openapi.TYPE_STRING),
+                'edir_description': openapi.Schema(type=openapi.TYPE_STRING),
+                'proposed_cbe_account': openapi.Schema(type=openapi.TYPE_STRING, pattern='^\d{13}$'),
+                'proposed_account_holder': openapi.Schema(type=openapi.TYPE_STRING),
+                'proposed_address': openapi.Schema(type=openapi.TYPE_STRING),
+                'proposed_initial_deposit': openapi.Schema(type=openapi.TYPE_NUMBER),
             },
-            required=['name', 'description', 'location'],
         ),
         responses={
-            200: openapi.Response(
-                description="Edir request submitted successfully",
-                examples={
-                    "text/html": "<html><body>Edir request success</body></html>"
-                }
-            )
+            201: openapi.Response('Created', EdirRequestSerializer),
+            400: 'Bad Request'
         }
     )
-    def post(self, request, *args, **kwargs):
-        form = EdirRequestForm(request.data)
-        if form.is_valid():
-            form.save()
-            return Response(template_name='tenants/edir_request_success.html')
-        return Response({'form': form}, template_name='tenants/edir_request.html')
 
-    def get(self, request, *args, **kwargs):
-        form = EdirRequestForm()
-        return Response({'form': form})
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            serializer.data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )
+
+    def list(self, request, *args, **kwargs):
+        # Typically only admins should see all requests
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+    @action(detail=True, methods=['PATCH'], permission_classes=[IsAdminUser])
+    def approve(self, request, pk=None):
+        """Admin endpoint to approve/reject an Edir request"""
+        edir_request = self.get_object()
+        serializer = EdirRequestApprovalSerializer(
+            edir_request, 
+            data=request.data, 
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+
+        if edir_request.processed:
+            return Response(
+                {'error': 'This request has already been processed'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        status_value = serializer.validated_data.get('status')
+        
+        if status_value == 'approved':
+            try:
+                with transaction.atomic():
+                    # Create user
+                    user = User.objects.create_user(
+                        username=edir_request.username,
+                        email=edir_request.email,
+                        password=edir_request.password
+                    )
+
+                    # Create Edir with all fields
+                    edir = Edir.objects.create(
+                        name=edir_request.edir_name,
+                        description=edir_request.edir_description,
+                        head=user,
+                        approved=True,
+                        cbe_account_number=edir_request.proposed_cbe_account,
+                        account_holder_name=edir_request.proposed_account_holder,
+                        address=edir_request.proposed_address,
+                        initial_deposit=edir_request.proposed_initial_deposit,
+                        current_balance=edir_request.proposed_initial_deposit
+                    )
+
+                    # Create Member
+                    Member.objects.create(
+                        user=user,
+                        edir=edir,
+                        full_name=edir_request.full_name,
+                        email=edir_request.email,
+                        status='approved',
+                        is_active=True
+                    )
+
+                    # Mark request as processed
+                    edir_request.status = 'approved'
+                    edir_request.processed = True
+                    edir_request.save()
+
+                    return Response(
+                        {
+                            'message': f"Edir '{edir.name}' created successfully",
+                            'edir_id': edir.id,
+                            'user_id': user.id
+                        },
+                        status=status.HTTP_200_OK
+                    )
+
+            except Exception as e:
+                return Response(
+                    {'error': str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        else:  # status = 'rejected'
+            edir_request.status = 'rejected'
+            edir_request.processed = True
+            edir_request.save()
+            return Response(
+                {'message': 'Edir request rejected'},
+                status=status.HTTP_200_OK
+            )

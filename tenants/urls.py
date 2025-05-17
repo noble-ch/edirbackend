@@ -1,14 +1,10 @@
-# tenants/urls.py
 from django.urls import path
-from .views import EdirRequestAPIView, UserLoginAPIView
+from rest_framework.routers import DefaultRouter
+from .views import EdirRequestViewSet, UserLoginAPIView
 
-
-
+router = DefaultRouter()
+router.register(r'edir/requests', EdirRequestViewSet, basename='edir-request')
 
 urlpatterns = [
-    path('edir/request/', EdirRequestAPIView.as_view(), name='edir_request_api'),
-    path('api/auth/login/', UserLoginAPIView.as_view(), name='edir-user-login'),
-
-
-
-]
+    path('auth/login/', UserLoginAPIView.as_view(), name='edir-user-login'),
+] + router.urls
