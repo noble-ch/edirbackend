@@ -13,7 +13,6 @@ __all__ = [
     'MemberViewSet',
     'EventViewSet',
     'AttendanceViewSet',
-    'ContributionViewSet',
     'ExpenseViewSet',
     'TaskGroupViewSet',
     'TaskViewSet',
@@ -22,5 +21,6 @@ __all__ = [
     'ResourceViewSet',
     'ResourceAllocationViewSet',
     'ResourceUsageViewSet',
-    # 'PaymentViewSet', 'PenaltyViewSet', 'ReminderViewSet', 'FinancialReportViewSet','verify_cbe'
+    # 'PaymentViewSet', 'PenaltyViewSet', 'ReminderViewSet', 'FinancialReportViewSet','verify_cbe', 'ContributionViewSet',
+
 ]
