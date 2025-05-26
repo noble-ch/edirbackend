@@ -7,11 +7,16 @@ from .models import User, Edir, EdirRequest, Member
 from .models import Event, Attendance
 from django.contrib.auth import get_user_model
 from .models import Resource, ResourceAllocation, ResourceUsage
+from .models import EmergencyRequest, MemberFeedback, Memorial
 
 User = get_user_model()
 
 
 admin.site.register(User, UserAdmin)
+
+admin.site.register(EmergencyRequest)
+admin.site.register(MemberFeedback)
+admin.site.register(Memorial)
 
 @admin.register(Edir)
 class EdirAdmin(admin.ModelAdmin):

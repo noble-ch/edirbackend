@@ -24,21 +24,24 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         user = self.request.user
         queryset = Member.objects.all()
         
+        # Apply status filter if provided
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
-            
-        if user.is_superuser:
-            return queryset
         
         try:
-            member = Member.objects.get(user=user)
-            if member.role != 'regular_member':
-                return queryset.exclude(role='regular_member')
+            current_member = Member.objects.get(user=user)
+            # For edir heads, only show members from their edir
+            if current_member.role == 'head':
+                return queryset.filter(edir=current_member.edir)
+            # For other roles (like admin), show members from their edir
+            elif current_member.role != 'regular_member':
+                return queryset.filter(edir=current_member.edir).exclude(role='regular_member')
+            # Regular members can only see themselves
+            else:
+                return queryset.filter(user=user)
         except Member.DoesNotExist:
             return queryset.none()
-        
-        return queryset.filter(edir__head=user)
     
     @swagger_auto_schema(
         operation_description="Get details of a specific member",
@@ -71,7 +74,7 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         return super().destroy(request, *args, **kwargs)
     
     @swagger_auto_schema(
-        operation_description="List all members",
+        operation_description="List all members of the edir",
         responses={200: MemberSerializer(many=True)}
     )
     def list(self, request, *args, **kwargs):

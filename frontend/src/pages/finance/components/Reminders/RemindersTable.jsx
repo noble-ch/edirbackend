@@ -14,13 +14,15 @@ import EditReminderModal from "./EditReminderModal";
 import ReminderDetails from "./ReminderDetails";
 import { useParams } from "react-router-dom";
 import { api } from "@/lib/api";
+import { Month } from "react-day-picker";
+import MonthlyReminder from "./MonthlyReminder";
 
 const RemindersTable = () => {
   const { edirslug } = useParams();
   const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
   const [isEditModalOpen, setEditModalOpen] = useState(false);
   const [isDetailsModalOpen, setDetailsModalOpen] = useState(false);
@@ -32,8 +34,8 @@ const RemindersTable = () => {
       setReminders(data);
       setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to fetch reminders');
-      console.error('Fetch reminders error:', err);
+      setError(err.message || "Failed to fetch reminders");
+      console.error("Fetch reminders error:", err);
     } finally {
       setLoading(false);
     }
@@ -44,20 +46,21 @@ const RemindersTable = () => {
       await api.post(`${edirslug}/reminders/${id}/send_now/`);
       fetchReminders(); // Refresh the list
     } catch (err) {
-      setError(err.message || 'Failed to send reminder');
-      console.error('Send reminder error:', err);
+      setError(err.message || "Failed to send reminder");
+      console.error("Send reminder error:", err);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this reminder?')) return;
-    
+    if (!window.confirm("Are you sure you want to delete this reminder?"))
+      return;
+
     try {
       await api.delete(`${edirslug}/reminders/${id}/`);
       setReminders(reminders.filter((reminder) => reminder.id !== id));
     } catch (err) {
-      setError(err.message || 'Failed to delete reminder');
-      console.error('Delete reminder error:', err);
+      setError(err.message || "Failed to delete reminder");
+      console.error("Delete reminder error:", err);
     }
   };
 
@@ -70,10 +73,11 @@ const RemindersTable = () => {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between mb-4">
         <Button onClick={() => setCreateModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" /> New Reminder
         </Button>
+        <MonthlyReminder />
       </div>
 
       {reminders.length === 0 ? (

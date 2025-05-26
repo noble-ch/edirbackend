@@ -6,6 +6,8 @@ from django.conf import settings
 import re
 from django.utils import timezone
 from django.core.validators import MinValueValidator, RegexValidator
+from tenants.utility.sms_utils import send_sms
+from twilio.rest import Client
 
 class User(AbstractUser):
     pass
@@ -709,44 +711,164 @@ class Penalty(models.Model):
     def __str__(self):
         return f"{self.member.full_name} - {self.amount} ({self.get_penalty_type_display()})"
 
+from django.db import models
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
+
 class Reminder(models.Model):
-    REMINDER_TYPE_CHOICES = [
+    REMINDER_TYPES = (
         ('payment_due', 'Payment Due'),
         ('event_reminder', 'Event Reminder'),
         ('task_reminder', 'Task Reminder'),
         ('other', 'Other'),
-    ]
+    )
     
-    STATUS_CHOICES = [
+    STATUS_CHOICES = (
         ('pending', 'Pending'),
         ('sent', 'Sent'),
         ('failed', 'Failed'),
         ('cancelled', 'Cancelled'),
-    ]
+    )
     
-    CHANNEL_CHOICES = [
+    CHANNEL_CHOICES = (
         ('email', 'Email'),
         ('sms', 'SMS'),
         ('push', 'Push Notification'),
         ('all', 'All Channels'),
-    ]
-    
-    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='reminders')
-    reminder_type = models.CharField(max_length=20, choices=REMINDER_TYPE_CHOICES)
+    )
+
+    edir = models.ForeignKey('Edir', on_delete=models.CASCADE)
+    reminder_type = models.CharField(max_length=20, choices=REMINDER_TYPES)
     subject = models.CharField(max_length=200)
     message = models.TextField()
-    recipients = models.ManyToManyField(Member, related_name='reminders')
     scheduled_time = models.DateTimeField()
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
-    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, default='email')
-    related_event = models.ForeignKey(Event, on_delete=models.SET_NULL, null=True, blank=True)
-    related_payment = models.ForeignKey(Payment, on_delete=models.SET_NULL, null=True, blank=True)
-    created_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, related_name='created_reminders')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    channel = models.CharField(max_length=10, choices=CHANNEL_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
     sent_at = models.DateTimeField(null=True, blank=True)
-    
+    related_event = models.ForeignKey('Event', on_delete=models.SET_NULL, null=True, blank=True)
+    related_payment = models.ForeignKey('Payment', on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    recipients = models.ManyToManyField('Member')
+
     def __str__(self):
         return f"{self.get_reminder_type_display()} - {self.subject}"
+
+
+    def format_phone_number(self, number):
+        """
+        Format phone number to E.164 format for Twilio.
+        Basic formatter, consider using a library like 'phonenumbers' for robustness.
+        """
+        if not number or not isinstance(number, str):
+            return None # Or raise ValueError
+
+        cleaned_number = ''.join(filter(str.isdigit, number))
+        
+        # Ethiopian specific formats (example)
+        if cleaned_number.startswith('09') and len(cleaned_number) == 10: # e.g. 0911123456
+            return '+251' + cleaned_number[1:]
+        elif cleaned_number.startswith('25109') and len(cleaned_number) == 13: # e.g. 2510911123456 (less common)
+             return '+251' + cleaned_number[3:]
+        elif cleaned_number.startswith('2519') and len(cleaned_number) == 12: # e.g. 251911123456
+            return '+' + cleaned_number
+        elif cleaned_number.startswith('+2519') and len(cleaned_number) == 13: # e.g. +251911123456
+            return cleaned_number
+        
+        # Generic international number already in E.164
+        if number.startswith('+') and len(cleaned_number) > 1: # Check if original number (not cleaned) starts with +
+             # This check could be more robust, e.g. using a regex or phonenumbers lib
+            # If the original `number` (not `cleaned_number`) starts with `+`, it might already be E.164
+            temp_cleaned_original = ''.join(filter(lambda char: char.isdigit() or char == '+', number))
+            if temp_cleaned_original.startswith('+') and len(temp_cleaned_original) > 7: # basic E.164 check
+                return temp_cleaned_original
+        
+        # Fallback or other country logic (can be risky without more context)
+        # The original global function had: `return '+' + cleaned_number` as a default.
+        # This is dangerous if cleaned_number doesn't include a country code.
+        # For safety, return None or raise error if format is unknown and not prefixed.
+        print(f"Warning: Phone number '{number}' could not be reliably formatted to E.164. Skipping.")
+        return None
+
+
+    def send_sms(self):
+        # This method now contains the Twilio sending logic.
+        
+        # Ensure recipients are queried once
+        recipient_phone_numbers = [m.phone_number for m in self.recipients.all() if m.phone_number and m.phone_number.strip()]
+        
+        if not recipient_phone_numbers:
+            self.status = 'failed'
+            # Optionally log: "No valid phone numbers for recipients."
+            self.save(update_fields=['status'])
+            return False
+        
+        # Check for Twilio settings
+        if not all([
+            getattr(settings, 'TWILIO_ACCOUNT_SID', None), 
+            getattr(settings, 'TWILIO_AUTH_TOKEN', None), 
+            getattr(settings, 'TWILIO_PHONE_NUMBER', None)
+        ]):
+            print("Error: Twilio settings (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER) are not configured.")
+            self.status = 'failed'
+            # Optionally log: "Twilio settings missing."
+            self.save(update_fields=['status'])
+            return False
+
+        try:
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        except Exception as e:
+            print(f"Failed to initialize Twilio client: {str(e)}")
+            self.status = 'failed'
+            self.save(update_fields=['status'])
+            return False
+            
+        all_messages_sent_successfully = True
+        any_message_attempted = False
+        message_body = f"{self.subject}: {self.message}"
+
+        for raw_number in recipient_phone_numbers:
+            formatted_number = None # ensure it's defined for logging in except block
+            try:
+                formatted_number = self.format_phone_number(raw_number)
+                if not formatted_number:
+                    print(f"Skipping SMS to {raw_number} due to invalid/unformattable number.")
+                    all_messages_sent_successfully = False
+                    continue
+
+                any_message_attempted = True
+                twilio_message_instance = client.messages.create(
+                    body=message_body,
+                    from_=settings.TWILIO_PHONE_NUMBER,
+                    to=formatted_number
+                )
+                print(f"Sent SMS to {formatted_number}, SID: {twilio_message_instance.sid}")
+            
+            except Exception as e: # Catches TwilioException and other errors for a single number
+                print(f"Failed to send SMS to {raw_number} (formatted: {formatted_number}): {str(e)}")
+                all_messages_sent_successfully = False
+        
+        if not any_message_attempted and recipient_phone_numbers:
+            # All numbers failed formatting or were invalid
+            self.status = 'failed'
+            # Optionally log: "All recipient phone numbers were invalid/unformattable."
+            self.save(update_fields=['status'])
+            return False
+
+        if all_messages_sent_successfully:
+            self.status = 'sent'
+            self.sent_at = timezone.now()
+            self.save(update_fields=['status', 'sent_at'])
+            return True
+        else:
+          
+            self.status = 'failed' 
+            
+            self.sent_at = timezone.now() # Record time of attempt even if partial/failed
+            self.save(update_fields=['status', 'sent_at'])
+            return False # Indicates not all were successful
+            
 
 class FinancialReport(models.Model):
     REPORT_TYPE_CHOICES = [
@@ -768,3 +890,92 @@ class FinancialReport(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.edir.name}"
+    
+    
+    
+    
+    
+    
+class EmergencyRequest(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('completed', 'Completed'),
+    ]
+    
+    EMERGENCY_TYPE_CHOICES = [
+        ('medical', 'Medical Emergency'),
+        ('accident', 'Accident'),
+        ('death', 'Death in Family'),
+        ('financial', 'Financial Hardship'),
+        ('other', 'Other'),
+    ]
+    
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='emergency_requests')
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='emergency_requests')
+    emergency_type = models.CharField(max_length=20, choices=EMERGENCY_TYPE_CHOICES)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    requested_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    approved_amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    supporting_documents = models.FileField(upload_to='emergency_docs/', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    reviewed_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, 
+                                  related_name='reviewed_emergencies')
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    response_note = models.TextField(blank=True)
+    
+    def __str__(self):
+        return f"{self.title} - {self.member.full_name}"
+
+class MemberFeedback(models.Model):
+    CATEGORY_CHOICES = [
+        ('general', 'General Feedback'),
+        ('suggestion', 'Suggestion'),
+        ('complaint', 'Complaint'),
+        ('appreciation', 'Appreciation'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('open', 'Open'),
+        ('in_review', 'In Review'),
+        ('resolved', 'Resolved'),
+        ('closed', 'Closed'),
+    ]
+    
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='feedbacks')
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='feedbacks')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    subject = models.CharField(max_length=200)
+    message = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    response = models.TextField(blank=True)
+    responded_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, 
+                                   related_name='responded_feedbacks')
+    responded_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.subject} - {self.member.full_name}"
+
+class Memorial(models.Model):
+    edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='memorials')
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='memorials')
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    date_of_passing = models.DateField()
+    memorial_date = models.DateField()
+    location = models.CharField(max_length=200)
+    is_public = models.BooleanField(default=False)
+    created_by = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='created_memorials')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    photo = models.ImageField(upload_to='memorial_photos/', null=True, blank=True)
+    
+    def __str__(self):
+        return f"In Memory of {self.member.full_name}"

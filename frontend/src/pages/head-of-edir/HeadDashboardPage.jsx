@@ -1,10 +1,17 @@
 import React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import MembersManagement from "./MembersManagement"; 
-import EventScheduler from "./EventScheduler"; 
-import { Users, CalendarDays, LayoutDashboard,AlarmClock , MessageCircle  ,FileText} from "lucide-react"; 
-
-
+import MembersManagement from "./MembersManagement";
+import EventScheduler from "./EventScheduler";
+import {
+  Users,
+  CalendarDays,
+  LayoutDashboard,
+  AlarmClock,
+  MessageCircle,
+  FileText,
+} from "lucide-react";
+import Emergency from "./Emergency";
+import Feedback from "./Feedback";
 
 function AdminDashboardPage() {
   return (
@@ -52,6 +59,12 @@ function AdminDashboardPage() {
           </TabsContent>
           <TabsContent value="events">
             <EventScheduler />
+          </TabsContent>
+          <TabsContent value="emergency">
+            <Emergency />
+          </TabsContent>
+          <TabsContent value="feedbacks">
+            <Feedback />
           </TabsContent>
         </Tabs>
       </div>

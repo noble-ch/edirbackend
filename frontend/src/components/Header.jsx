@@ -62,8 +62,8 @@ function Header() {
   }, [navigate]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-brunswick-green/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between px-4">
+    <header className="sticky top-0 z-50 w-full border-b  backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-16 items-center bg-primary justify-between px-4">
         {/* Logo and mobile menu button */}
         <div className="flex items-center gap-4">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -88,21 +88,21 @@ function Header() {
                 </Link>
                 <Link
                   to="/"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-white hover:text-black transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Home
                 </Link>
                 <Link
                   to="#about"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-white hover:text-black transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   About
                 </Link>
                 <Link
                   to="#contact"
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-white hover:text-black transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   Contact
@@ -111,14 +111,14 @@ function Header() {
                   <>
                     <Link
                       to="#profile/manage"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-white hover:text-black transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       My Profile
                     </Link>
                     <button
                       onClick={handleLogout}
-                      className="text-muted-foreground hover:text-foreground transition-colors text-left"
+                      className="text-white hover:text-black transition-colors text-left"
                     >
                       Logout
                     </button>
@@ -127,14 +127,14 @@ function Header() {
                   <>
                     <Link
                       to={userEdir ? `${userEdir}/login` : "/login"}
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-white hover:text-black transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Login
                     </Link>
                     <Link
                       to="/register"
-                      className="text-muted-foreground hover:text-foreground transition-colors"
+                      className="text-white hover:text-black transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Register
@@ -154,26 +154,26 @@ function Header() {
         <nav className="hidden items-center gap-6 md:flex">
           <Link
             to="/"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="text-sm font-medium text-white transition-colors hover:text-black"
           >
             Home
           </Link>
           <Link
             to="#about"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="text-sm font-medium text-white transition-colors hover:text-black"
           >
             About
           </Link>
           <Link
             to="#contact"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+            className="text-sm font-medium text-white transition-colors hover:text-black"
           >
             Contact
           </Link>
         </nav>
 
         {/* Auth/Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex  items-center gap-2">
           {accessToken ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -181,7 +181,7 @@ function Header() {
                   <Avatar className="h-6 w-6">
                     <AvatarImage src={user?.avatar} alt={user?.name} />
                     <AvatarFallback>
-                      {user?.name
+                      {user?.email
                         ?.split(" ")
                         .map((n) => n[0])
                         .join("")}
@@ -205,7 +205,7 @@ function Header() {
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="default" size="sm">
+                <Button className="bg-black hover:bg-secondary" size="sm">
                   Get Started
                 </Button>
               </DropdownMenuTrigger>
