@@ -26,6 +26,7 @@ class RepresentativeSerializer(serializers.ModelSerializer):
         fields = ['full_name', 'phone_number', 'email', 'date_of_designation']
 
 class UserLoginSerializer(serializers.Serializer):
+    
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
     access = serializers.CharField(read_only=True)
