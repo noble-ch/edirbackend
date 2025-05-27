@@ -8,6 +8,9 @@ from .models import Event, Attendance
 from django.contrib.auth import get_user_model
 from .models import Resource, ResourceAllocation, ResourceUsage
 from .models import EmergencyRequest, MemberFeedback, Memorial
+from .models import Payment
+
+admin.site.register(Payment)
 
 User = get_user_model()
 

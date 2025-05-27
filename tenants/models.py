@@ -665,8 +665,7 @@ class Payment(models.Model):
     edir = models.ForeignKey(Edir, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_type = models.CharField(max_length=20, choices=PAYMENT_TYPE_CHOICES)
-    payment_method = models.CharField(max_length=20, choices=Contribution.PAYMENT_METHOD_CHOICES)
-    payment_date = models.DateField()
+    payment_date = models.DateField( blank=True, null=True)
     transaction_reference = models.CharField(max_length=100, blank=True, null=True)
     status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='pending')
     verified_by = models.ForeignKey(Member, on_delete=models.SET_NULL, null=True, blank=True, 
@@ -845,7 +844,7 @@ class Reminder(models.Model):
                 )
                 print(f"Sent SMS to {formatted_number}, SID: {twilio_message_instance.sid}")
             
-            except Exception as e: # Catches TwilioException and other errors for a single number
+            except Exception as e: 
                 print(f"Failed to send SMS to {raw_number} (formatted: {formatted_number}): {str(e)}")
                 all_messages_sent_successfully = False
         

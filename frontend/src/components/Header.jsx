@@ -62,8 +62,8 @@ function Header() {
   }, [navigate]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b  backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center bg-primary justify-between px-4">
+    <header className="sticky top-0 z-50 w-full border-b bg-primary shadow-md">
+      <div className="container flex h-16 items-center bg-primary w-full justify-between px-4">
         {/* Logo and mobile menu button */}
         <div className="flex items-center gap-4">
           <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>

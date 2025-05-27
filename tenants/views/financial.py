@@ -1,3 +1,4 @@
+from django.forms import ValidationError
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -153,38 +154,96 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsEdirMember]
 
+
+    def get_permissions(self):
+        if self.action in ['create', 'bulk_create']:
+            self.permission_classes = [IsTreasurerOrHead]
+        elif self.action in ['verify']:
+            self.permission_classes = [IsEdirMember]
+        return super().get_permissions()
+
     def get_queryset(self):
         edir_slug = self.kwargs.get('edir_slug')
         edir = get_object_or_404(Edir, slug=edir_slug)
-        return self.queryset.filter(edir=edir)
+        user = self.request.user
+        
+        if user.is_superuser:
+            return self.queryset.filter(edir=edir)
+            
+        try:
+            member = Member.objects.get(user=user, edir=edir)
+            print(f"Member found: {member.role} (ID: {member.id})")
+            
+            # Head or treasurer can see all payments
+            if edir.head == user or member.role.lower() == 'treasurer':
+                return self.queryset.filter(edir=edir)
+                
+            # Regular members can only see their own payments
+            return self.queryset.filter(edir=edir, member=member)
+            
+        except Member.DoesNotExist:
+            return Payment.objects.none()
 
-
+    @action(detail=False, methods=['post'], permission_classes=[IsTreasurerOrHead])
+    def bulk_create(self, request, edir_slug=None):
+        """
+        Create payments for all members of the edir
+        Only accessible by treasurer or head
+        """
+        edir = get_object_or_404(Edir, slug=edir_slug)
+        requesting_member = get_object_or_404(Member, user=request.user, edir=edir)
+        
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Get all active members except the creator (if needed)
+        members = Member.objects.filter(edir=edir, is_active=True)
+        
+        # Create payments for each member
+        payments = []
+        current_date = timezone.now().date()
+        
+        for mem in members:
+            payment = Payment(
+                member=mem,
+                edir=edir,  # This is the critical fix - set the edir relationship
+                amount=serializer.validated_data['amount'],
+                payment_type=serializer.validated_data['payment_type'],
+                payment_date=current_date,
+                notes=serializer.validated_data.get('notes', ''),
+                status='pending'
+            )
+            payment.save()
+            payments.append(payment)
+        
+        return Response(
+            self.get_serializer(payments, many=True).data,
+            status=status.HTTP_201_CREATED
+        )
+        
+    
     def perform_create(self, serializer):
+        """
+        Single payment creation - still only for treasurer/head
+        """
         edir_slug = self.kwargs.get('edir_slug')
         edir = get_object_or_404(Edir, slug=edir_slug)
-        member = get_object_or_404(Member, user=self.request.user, edir=edir)
+        requesting_member = get_object_or_404(Member, user=self.request.user, edir=edir)
+        payment_date = timezone.now().date()
+        # Set default values
+        serializer.validated_data.update({
+            'edir': edir,
+            'payment_date': payment_date,
+            'status': 'pending',
+            'payment_method': 'bank_transfer'
+        })
         
-        payment_type = serializer.validated_data.get('payment_type', None)
-        
-        if payment_type == 'monthly':
-            today = timezone.now().date()
-            start_of_month = today.replace(day=1)
+
+        if 'member' not in serializer.validated_data:
+            raise ValidationError({"member": "This field is required."})
             
-            existing_payment = Payment.objects.filter(
-                member=member,
-                payment_type='monthly',
-                payment_date__gte=start_of_month,
-                payment_date__lte=today,
-                status='completed'
-            ).exists()
-            
-            if existing_payment:
-                raise serializers.ValidationError("You have already paid for this month.")
-            
-            # Set the amount to 500 (monthly fee)
-            serializer.validated_data['amount'] = 500
-        
-        serializer.save(edir=edir, member=member)
+        serializer.save()
+
 
     @action(detail=False, methods=['get'], permission_classes=[IsTreasurerOrHead])
     def summary(self, request, edir_slug=None):
@@ -202,8 +261,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         })
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
-    def verify(self, request, edir_slug=None, pk=None): # pk for Payment, edir_slug for Edir
-        payment = self.get_object() # Retrieves the Payment instance
+    def verify(self, request, edir_slug=None, pk=None): 
+        payment = self.get_object()
         
         edir = get_object_or_404(Edir, slug=edir_slug)
         if payment.edir != edir:
