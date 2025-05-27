@@ -10,7 +10,7 @@ class EmergencyRequestViewSet(viewsets.ModelViewSet):
     serializer_class = EmergencyRequestSerializer
     permission_classes = [permissions.IsAuthenticated]
     def get_edir(self):
-        edir_slug = self.request.query_params.get('edir_slug')
+        edir_slug = self.request.queryno_params.get('edir_slug')
         if not edir_slug:
             return None
         try:

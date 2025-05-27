@@ -12,7 +12,21 @@ from ..models import Contribution, Expense, Member, Event, Payment, Penalty, Rem
 from tenants import serializers
 from django.db.models import Sum
 from .transaction import verify_cbe 
+import logging
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+class CbeVerificationError(Exception):
+    """Base exception for CBE verification issues."""
+    pass
+
+class CbeServiceRetrievalError(CbeVerificationError):
+    """Indicates an error in retrieving the document from CBE (network, Playwright setup/navigation, PDF not found)."""
+    def __init__(self, message, underlying_error=None):
+        super().__init__(message)
+        self.underlying_error = underlying_error
 
 class ContributionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -150,11 +164,9 @@ class PaymentViewSet(viewsets.ModelViewSet):
         edir = get_object_or_404(Edir, slug=edir_slug)
         member = get_object_or_404(Member, user=self.request.user, edir=edir)
         
-        # Check if this is a monthly payment
         payment_type = serializer.validated_data.get('payment_type', None)
         
         if payment_type == 'monthly':
-            # Check if member has already paid for this month
             today = timezone.now().date()
             start_of_month = today.replace(day=1)
             
@@ -188,11 +200,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
             'total_amount': total_amount,
             'pending_payments': pending_payments,
         })
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsEdirMember])
-    def verify(self, request, edir_slug=None, pk=None):
-        payment = self.get_object()
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def verify(self, request, edir_slug=None, pk=None): # pk for Payment, edir_slug for Edir
+        payment = self.get_object() # Retrieves the Payment instance
         
-        # Ensure the payment belongs to the specified edir
         edir = get_object_or_404(Edir, slug=edir_slug)
         if payment.edir != edir:
             return Response(
@@ -200,44 +212,114 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Get transaction reference and account suffix from request data
-        reference_id_part = request.data.get('reference_id_part')
-        account_suffix = request.data.get('account_suffix')
+        cbe_account_number = getattr(edir, 'cbe_account_number', None)
+        account_holder_name = getattr(edir, 'account_holder_name', None)
         
-        if not reference_id_part or not account_suffix:
+        # Determine how to call verify_cbe based on request data
+        full_cbe_url_from_request = request.data.get('full_cbe_url')
+        reference_id_part_from_request = request.data.get('reference_id_part')
+        account_suffix_from_request = request.data.get('account_suffix')
+
+        call_args = {}
+        if full_cbe_url_from_request and str(full_cbe_url_from_request).strip():
+            call_args['full_url_input'] = str(full_cbe_url_from_request).strip()
+        elif (reference_id_part_from_request and str(reference_id_part_from_request).strip() and
+              account_suffix_from_request and str(account_suffix_from_request).strip()):
+            call_args['reference_id_part'] = str(reference_id_part_from_request).strip()
+            call_args['account_suffix'] = str(account_suffix_from_request).strip()
+        else:
             return Response(
-                {'error': 'Both reference_id_part and account_suffix are required'},
+                {
+                    'status': 'failed',
+                    'error_type': 'missing_input',
+                    'error': "Required parameters missing. Provide either a non-empty 'full_cbe_url' or "
+                             "both non-empty 'reference_id_part' and 'account_suffix'.",
+                    'message': 'Invalid input parameters for verification.'
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         try:
-            # Verify the transaction using your function with error handling
-            verification_result = verify_cbe(
-                reference_id_part=reference_id_part,
-                account_suffix=account_suffix
-            )
+            verification_result = verify_cbe(**call_args)
             
+            # --- Same logic as before for handling verification_result ---
             if not verification_result['success']:
                 payment.status = 'failed'
-                payment.verification_error = verification_result.get('error', 'Verification failed')
+                payment.verification_error = verification_result.get('error', 'Verification failed: Could not process receipt details.')
+                payment.verified_at = timezone.now()
                 payment.save()
                 return Response(
                     {
                         'status': 'failed',
-                        'error': verification_result.get('error'),
-                        'message': 'Payment verification failed'
+                        'error_type': 'parsing_error',
+                        'error': payment.verification_error,
+                        'message': 'Payment verification failed. Could not process receipt details.'
                     },
                     status=status.HTTP_200_OK
                 )
+
+            receiver_account_pdf = verification_result.get('receiver_account')
+            receiver_name_pdf = (verification_result.get('receiver') or '').lower()
             
-            # Verification succeeded - update payment details
+            edir_cbe_acc_num_last4 = str(cbe_account_number)[-4:].lower() if cbe_account_number else None
+            edir_acc_holder_name_lower = account_holder_name.lower() if account_holder_name else None
+
+            mismatch_details = []
+            validation_passed = True
+
+            if edir_cbe_acc_num_last4:
+                if not receiver_account_pdf:
+                    validation_passed = False
+                    mismatch_details.append("Receiver account missing in PDF, but expected by Edir.")
+                elif str(receiver_account_pdf)[-4:].lower() != edir_cbe_acc_num_last4:
+                    validation_passed = False
+                    mismatch_details.append(f"Receiver account number mismatch (Expected ending: ...{edir_cbe_acc_num_last4}, Got: ...{str(receiver_account_pdf)[-4:]}).")
+            
+            if edir_acc_holder_name_lower:
+                if not receiver_name_pdf:
+                    validation_passed = False
+                    mismatch_details.append("Receiver name missing in PDF, but expected by Edir.")
+                elif receiver_name_pdf != edir_acc_holder_name_lower:
+                    validation_passed = False
+                    mismatch_details.append(f"Receiver name mismatch (Expected: '{account_holder_name}', Got: '{verification_result.get('receiver')}').")
+
+            if not edir_cbe_acc_num_last4 and not edir_acc_holder_name_lower:
+                 logger.info(f"No CBE account or holder name configured for Edir {edir_slug} for validation. Skipping receiver check for payment {pk}.")
+
+            if not validation_passed:
+                final_mismatch_error = "Receiver details mismatch: " + "; ".join(mismatch_details)
+                payment.status = 'failed'
+                payment.verification_error = final_mismatch_error
+                payment.verified_at = timezone.now()
+                payment.payer_name = verification_result.get('payer')
+                payment.payer_account = verification_result.get('payer_account')
+                payment.transaction_reference = verification_result.get('reference')
+                payment.verification_details = {
+                    'retrieved_receiver': verification_result.get('receiver'),
+                    'retrieved_receiver_account': verification_result.get('receiver_account'),
+                    'retrieved_amount': verification_result.get('amount'),
+                    'retrieved_date': verification_result.get('date').isoformat() if verification_result.get('date') else None,
+                    'retrieved_reason': verification_result.get('reason'),
+                }
+                payment.save()
+                return Response(
+                    {
+                        'status': 'failed',
+                        'error_type': 'receiver_mismatch',
+                        'error': final_mismatch_error,
+                        'message': 'Payment verification failed due to receiver details mismatch.'
+                    },
+                    status=status.HTTP_200_OK
+                )
+
             payment.status = 'completed'
-            payment.verified_at = datetime.now()
+            payment.verified_at = timezone.now()
             payment.transaction_reference = verification_result.get('reference')
             payment.payer_name = verification_result.get('payer')
             payment.payer_account = verification_result.get('payer_account')
             payment.transaction_date = verification_result.get('date')
-            payment.amount = verification_result.get('amount', payment.amount)  # Update amount if verified
+            payment.amount = verification_result.get('amount', payment.amount)
+            payment.verification_error = None
             payment.verification_details = {
                 'receiver': verification_result.get('receiver'),
                 'receiver_account': verification_result.get('receiver_account'),
@@ -252,22 +334,56 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     'details': {
                         'payer': payment.payer_name,
                         'payer_account': payment.payer_account,
+                        'receiver': payment.verification_details.get('receiver'),
+                        'receiver_account': payment.verification_details.get('receiver_account'),
                         'amount': payment.amount,
-                        'date': payment.transaction_date,
+                        'date': payment.transaction_date.isoformat() if payment.transaction_date else None,
                         'reference': payment.transaction_reference,
                     }
                 },
                 status=status.HTTP_200_OK
             )
-            
-        except Exception as e:
-            logger.error(f"Payment verification failed: {str(e)}", exc_info=True)
+
+        except ValueError as e_val: # Catches invalid arguments passed to verify_cbe
+            logger.warning(
+                f"Invalid arguments for CBE verification: {str(e_val)} (Payment PK: {pk}, Edir: {edir_slug})"
+            )
             return Response(
                 {
-                    'error': 'Verification service unavailable. Please try again later.',
-                    'message': 'An error occurred during verification'
+                    'status': 'failed', # This is a client input error, so verification process itself failed due to bad input
+                    'error_type': 'invalid_input',
+                    'error': str(e_val),
+                    'message': 'Invalid input parameters for verification.'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except CbeServiceRetrievalError as e_service:
+            logger.warning(
+                f"CBE service retrieval error for payment {pk} (Edir {edir_slug}): {str(e_service)}", 
+                exc_info=True # Set to False if too verbose for just retrieval errors
+            )
+            return Response(
+                {
+                    'status': 'error',
+                    'error_type': 'service_unavailable',
+                    'error': 'Verification service temporarily unavailable. Could not retrieve document.',
+                    'message': 'Please try again later. The payment status remains unchanged.'
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e_unexpected:
+            logger.error(
+                f"Unexpected error during payment {pk} verification (Edir {edir_slug}): {str(e_unexpected)}", 
+                exc_info=True
+            )
+            return Response(
+                {
+                    'status': 'error',
+                    'error_type': 'internal_server_error',
+                    'error': 'An unexpected internal error occurred during verification.',
+                    'message': 'Please try again later or contact support. The payment status remains unchanged.'
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
                 
 class PenaltyViewSet(viewsets.ModelViewSet):
