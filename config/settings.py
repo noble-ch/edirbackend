@@ -12,7 +12,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
-from .celery_beat_schedule import CELERY_BEAT_SCHEDULE
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -56,7 +55,6 @@ REST_FRAMEWORK = {
 }
 
 from datetime import timedelta
-from celery.schedules import crontab
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=3000),
@@ -208,23 +206,6 @@ CORS_ALLOWED_ORIGINS = [
     'https://frontend-domain.com',
 ]
 
-
-# Celery settings
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Using Redis as broker
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'Africa/Addis_Ababa' 
-
-CELERY_BEAT_SCHEDULE = {
-    'handle-monthly-payments': {
-        'task': 'your_app.tasks.handle_monthly_payments',
-        'schedule': crontab(day_of_month='1-3', hour=8, minute=0),  # Runs 1st-3rd at 8AM
-    },
-}
-
-CELERY_BEAT_SCHEDULE = CELERY_BEAT_SCHEDULE
 
 
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
