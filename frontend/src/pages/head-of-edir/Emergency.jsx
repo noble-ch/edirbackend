@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function Emergency() {
   const [emergencies, setEmergencies] = useState([]);
@@ -29,6 +31,10 @@ function Emergency() {
   const [error, setError] = useState(null);
   const [selectedEmergency, setSelectedEmergency] = useState(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [approvedAmount, setApprovedAmount] = useState("");
+  const [responseNote, setResponseNote] = useState("");
+  const [isApproving, setIsApproving] = useState(false);
   const { edirslug } = useParams();
 
   useEffect(() => {
@@ -96,6 +102,61 @@ function Emergency() {
     setIsDialogOpen(true);
   };
 
+  const handleApproveClick = (emergency) => {
+    setSelectedEmergency(emergency);
+    setApprovedAmount(emergency.requested_amount || "");
+    setIsApproveDialogOpen(true);
+  };
+
+  const handleApproveSubmit = async () => {
+    if (!approvedAmount || isNaN(approvedAmount)) {
+      setError("Please enter a valid amount");
+      return;
+    }
+
+    setIsApproving(true);
+    const token = localStorage.getItem("accessToken");
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/${edirslug}/emergencies/${selectedEmergency.id}/approve/`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            approved_amount: approvedAmount,
+            response_note: responseNote,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to approve emergency");
+      }
+
+      const updatedEmergency = await response.json();
+
+      // Update the emergencies list
+      setEmergencies(
+        emergencies.map((emergency) =>
+          emergency.id === updatedEmergency.id ? updatedEmergency : emergency
+        )
+      );
+
+      setIsApproveDialogOpen(false);
+      setSelectedEmergency(updatedEmergency);
+      setApprovedAmount("");
+      setResponseNote("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -120,7 +181,6 @@ function Emergency() {
         <CardHeader>
           <div className="flex justify-between items-center ">
             <CardTitle>Emergency Requests</CardTitle>
-            {/* <Button variant="outline">Create New Emergency</Button> */}
           </div>
         </CardHeader>
         <CardContent>
@@ -154,14 +214,22 @@ function Emergency() {
                   <TableCell>
                     {new Date(emergency.created_at).toLocaleDateString()}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => handleViewDetails(emergency)}
                     >
-                      View Details
+                      View
                     </Button>
+                    {emergency.status === "pending" && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleApproveClick(emergency)}
+                      >
+                        Approve
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -247,6 +315,55 @@ function Emergency() {
                     </div>
                   </>
                 )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Approve Emergency Dialog */}
+      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <DialogContent className="sm:max-w-[625px]">
+          {selectedEmergency && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Approve Emergency Request</DialogTitle>
+                <DialogDescription>
+                  Approve the emergency request for {selectedEmergency.title}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="amount">Approved Amount (ETB)</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    value={approvedAmount}
+                    onChange={(e) => setApprovedAmount(e.target.value)}
+                    placeholder="Enter approved amount"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="note">Response Note (Optional)</Label>
+                  <Input
+                    id="note"
+                    type="text"
+                    value={responseNote}
+                    onChange={(e) => setResponseNote(e.target.value)}
+                    placeholder="Enter any notes for the member"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsApproveDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleApproveSubmit} disabled={isApproving}>
+                    {isApproving ? "Approving..." : "Approve"}
+                  </Button>
+                </div>
               </div>
             </>
           )}

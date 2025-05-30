@@ -22,7 +22,7 @@ const CreatePaymentModal = ({ isOpen, onClose, onSave }) => {
     e.preventDefault();
     onSave({
       ...formData,
-      id: Math.floor(Math.random() * 1000), // Temp ID - replace with API response
+      id: Math.floor(Math.random() * 1000), 
       amount: parseFloat(formData.amount)
     });
   };

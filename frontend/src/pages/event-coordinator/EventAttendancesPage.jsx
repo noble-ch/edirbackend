@@ -14,6 +14,7 @@ import {
 // Input, Textarea, Select are removed as event selection is removed
 import { Button } from "@/components/ui/button";
 // Badge, Label removed (Label was for event select)
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 // Separator removed
@@ -180,6 +181,38 @@ function EventAttendancesPage({
     return attendances.filter((att) => att.status === activeTab);
   };
 
+  const handleRecordAttendance = async (attendanceId, status) => {
+    try {
+      const token = localStorage.getItem("accessToken");
+      const response = await axios.patch(
+        `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/attendances/${attendanceId}/record-attendance/`,
+        { actual_attendance: status },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Update local state
+      setAttendances((prev) =>
+        prev.map((att) => (att.id === attendanceId ? response.data : att))
+      );
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to record attendance");
+    }
+  };
+  const getAttendanceBadge = (status) => {
+    switch (status) {
+      case "present":
+        return <Badge variant="success">Present</Badge>;
+      case "absent":
+        return <Badge variant="destructive">Absent</Badge>;
+      default:
+        return <Badge variant="secondary">Not Recorded</Badge>;
+    }
+  };
   if (!selectedEvent) {
     return (
       <Card>
@@ -325,128 +358,62 @@ function EventAttendancesPage({
                       <TableHeader>
                         <TableRow>
                           <TableHead>Member</TableHead>
-                          {tabValue === "all" && <TableHead>Status</TableHead>}
-                          <TableHead>Response Date</TableHead>
-                          <TableHead>Note</TableHead>
-                          {(tabValue === "all" || tabValue === "maybe") && (
-                            <TableHead>Actions</TableHead>
-                          )}
+                          <TableHead>RSVP Status</TableHead>
+                          <TableHead>Actual Attendance</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {filteredAttendances().length > 0 ? (
-                          filteredAttendances().map((attendance) => {
-                            const member = members.find(
-                              (m) => m.id === attendance.member
-                            );
-                            if (!member)
-                              return (
-                                <TableRow key={attendance.id}>
-                                  <TableCell colSpan={5}>
-                                    Member data missing for attendance record.
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            return (
-                              <TableRow key={attendance.id}>
-                                <TableCell>
-                                  <div className="flex items-center gap-3">
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarImage
-                                        src={member?.profile_picture}
-                                      />
-                                      <AvatarFallback>
-                                        {member?.full_name
-                                          ?.split(" ")
-                                          .map((n) => n[0])
-                                          .join("")}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <div>
-                                      <div className="font-medium">
-                                        {member?.full_name || "Unknown"}
-                                      </div>
-                                      <div className="text-sm text-gray-500">
-                                        {member?.phone_number || ""}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                {tabValue === "all" && (
-                                  <TableCell>
-                                    <div className="flex items-center gap-2">
-                                      {getStatusIcon(attendance.status)}
-                                      <span className="capitalize">
-                                        {attendance.status?.replace(
-                                          /_/g,
-                                          " "
-                                        ) || "N/A"}
-                                      </span>
-                                    </div>
-                                  </TableCell>
-                                )}
-                                <TableCell>
-                                  {formatDate(attendance.responded_at)}
-                                </TableCell>
-                                <TableCell className="max-w-xs truncate">
-                                  {attendance.note || "-"}
-                                </TableCell>
-                                {(tabValue === "all" ||
-                                  tabValue === "maybe") && (
-                                  <TableCell>
-                                    <div className="flex gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleUpdateAttendance(
-                                            attendance.id,
-                                            "attending"
-                                          )
-                                        }
-                                        disabled={
-                                          attendance.status === "attending"
-                                        }
-                                      >
-                                        <Check className="w-4 h-4 mr-1" />
-                                        Confirm
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          handleUpdateAttendance(
-                                            attendance.id,
-                                            "not_attending"
-                                          )
-                                        }
-                                        disabled={
-                                          attendance.status === "not_attending"
-                                        }
-                                      >
-                                        <X className="w-4 h-4 mr-1" />
-                                        Decline
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          <TableRow>
-                            <TableCell
-                              colSpan={
-                                tabValue === "all" || tabValue === "maybe"
-                                  ? 5
-                                  : 3
-                              }
-                              className="h-24 text-center"
-                            >
-                              No attendances found for this filter.
+                        {filteredAttendances().map((attendance) => (
+                          <TableRow key={attendance.id}>
+                            <TableCell>{/* Member info display */}</TableCell>
+                            <TableCell>
+                              {getStatusIcon(attendance.status)}
+                              <span className="ml-2 capitalize">
+                                {attendance.status.replace(/_/g, " ")}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              {getAttendanceBadge(attendance.actual_attendance)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleRecordAttendance(
+                                      attendance.id,
+                                      "present"
+                                    )
+                                  }
+                                  disabled={
+                                    attendance.actual_attendance === "present"
+                                  }
+                                >
+                                  <Check className="w-4 h-4 mr-1" />
+                                  Mark Present
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleRecordAttendance(
+                                      attendance.id,
+                                      "absent"
+                                    )
+                                  }
+                                  disabled={
+                                    attendance.actual_attendance === "absent"
+                                  }
+                                >
+                                  <X className="w-4 h-4 mr-1" />
+                                  Mark Absent
+                                </Button>
+                              </div>
                             </TableCell>
                           </TableRow>
-                        )}
+                        ))}
                       </TableBody>
                     </Table>
                   )}
