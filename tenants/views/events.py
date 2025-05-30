@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
 from drf_yasg.utils import swagger_auto_schema
 from django.shortcuts import get_object_or_404
 from django.db.models import Q
@@ -66,7 +67,10 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
-        event_id = self.kwargs.get('event_id')
+        edir_slug = self.kwargs.get('edir_slug')
+        edir = None
+        if edir_slug:
+            edir = get_object_or_404(Edir, slug=edir_slug)
         
         if user.is_superuser:
             return Attendance.objects.all()
@@ -81,3 +85,20 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         event = get_object_or_404(Event, id=event_id)
         member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
         serializer.save(event=event, member=member)
+        
+    @action(detail=True, methods=['patch'], url_path='record-attendance')
+    def record_attendance(self, request, pk=None, **kwargs):
+        attendance = self.get_object()
+        actual_attendance = request.data.get('actual_attendance')
+        
+        if not actual_attendance or actual_attendance not in ['present', 'absent']:
+            return Response(
+                {"detail": "Please provide valid attendance status (present or absent)."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        attendance.actual_attendance = actual_attendance
+        attendance.save()
+        
+        serializer = self.get_serializer(attendance)
+        return Response(serializer.data)

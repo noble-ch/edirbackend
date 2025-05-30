@@ -212,3 +212,22 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 SMS_API_KEY = os.environ.get('SMS_API_KEY')
+
+FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # For production
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'  # For development (prints emails to console)
+
+# SMTP Configuration (example for Gmail)
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'nbf.binary@gmail.com'  # Your email address
+EMAIL_HOST_PASSWORD = 'gcsb nyln daiv ndrb'  # Your email password or app password
+DEFAULT_FROM_EMAIL = 'nbf.binary@gmail.com'  # Same as EMAIL_HOST_USER
+
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24 * 3  
+
+# Frontend URL for password reset links
+FRONTEND_URL = 'http://localhost:5173'  # Your frontend URL
+PASSWORD_RESET_CONFIRM_URL = 'reset-password/{uid}/{token}'  # Frontend route

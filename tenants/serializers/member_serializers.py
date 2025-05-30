@@ -230,3 +230,56 @@ class MemberDetailSerializer(serializers.ModelSerializer):
             'status', 'role'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 'status']
+        
+        
+        
+
+
+
+class MemberUpdateSerializer(serializers.ModelSerializer):
+    spouse = SpouseSerializer(required=False)
+    family_members = FamilyMemberSerializer(many=True, required=False)
+    representatives = RepresentativeSerializer(many=True, required=False)
+    
+    class Meta:
+        model = Member
+        fields = [
+            'full_name', 'email', 'phone_number', 'address',
+            'city', 'state', 'zip_code', 'home_or_alternate_phone',
+            'registration_type', 'spouse', 'family_members',
+            'representatives', 'status', 'role'
+        ]
+        read_only_fields = ['status', 'role']  # Default to read-only, head can override
+    
+    def update(self, instance, validated_data):
+        # Handle nested updates
+        spouse_data = validated_data.pop('spouse', None)
+        family_members_data = validated_data.pop('family_members', [])
+        representatives_data = validated_data.pop('representatives', [])
+        
+        # Update main member fields
+        instance = super().update(instance, validated_data)
+        
+        # Update spouse if provided
+        if spouse_data:
+            if hasattr(instance, 'spouse'):
+                for attr, value in spouse_data.items():
+                    setattr(instance.spouse, attr, value)
+                instance.spouse.save()
+            else:
+                Spouse.objects.create(member=instance, **spouse_data)
+        
+        # Update family members - this is a simple implementation
+        # In production, you might want more sophisticated handling
+        if family_members_data:
+            instance.family_members.all().delete()
+            for fam_data in family_members_data:
+                FamilyMember.objects.create(member=instance, **fam_data)
+        
+        # Update representatives
+        if representatives_data:
+            instance.representatives.all().delete()
+            for rep_data in representatives_data:
+                Representative.objects.create(member=instance, **rep_data)
+        
+        return instance

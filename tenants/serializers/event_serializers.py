@@ -13,12 +13,15 @@ class EventSerializer(serializers.ModelSerializer):
 
 class AttendanceSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source='member.full_name', read_only=True)
+    member_profile_picture = serializers.CharField(source='member.profile_picture', read_only=True)
     
     class Meta:
         model = Attendance
-        fields = ['id', 'event', 'member', 'member_name', 'status', 'responded_at', 'note']
-        read_only_fields = ['id', 'responded_at','event', 'member']
-
+        fields = [
+            'id', 'event', 'member', 'member_name', 'member_profile_picture',
+            'status', 'actual_attendance', 'responded_at', 'note'
+        ]
+        read_only_fields = ['id', 'responded_at', 'event', 'member']
 class ContributionSerializer(serializers.ModelSerializer):
     member_name = serializers.CharField(source='member.full_name', read_only=True)
     

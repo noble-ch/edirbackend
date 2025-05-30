@@ -296,28 +296,32 @@ class Attendance(models.Model):
         ('maybe', 'Maybe'),
         ('no_response', 'No Response'),
     ]
+    
+    ATTENDANCE_CHOICES = [
+        ('present', 'Present'),
+        ('absent', 'Absent'),
+        ('not_recorded', 'Not Recorded'),
+    ]
 
     event = models.ForeignKey(Event, on_delete=models.CASCADE, related_name='attendances')
     member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name='attendances')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='no_response')
+    actual_attendance = models.CharField(
+        max_length=20, 
+        choices=ATTENDANCE_CHOICES, 
+        default='not_recorded',
+        help_text="Actual attendance recorded by coordinator"
+    )
     responded_at = models.DateTimeField(auto_now=True)
     note = models.TextField(blank=True, null=True)
     
     class Meta:
         unique_together = ('event', 'member')
-    def save(self, *args, **kwargs):
-        if self.pk is None or self.status != 'no_response': 
-             original = Attendance.objects.filter(pk=self.pk).first()
-             if not original or original.status == 'no_response' or original.status != self.status:
-                 self.responded_at = timezone.now()
-        elif self.status == 'no_response':
-            self.responded_at = None
-            
-        super().save(*args, **kwargs)
-
+        
     def __str__(self):
         return f"{self.member.full_name} - {self.event.title}"
-
+    
+    
 class Contribution(models.Model):
     PAYMENT_METHOD_CHOICES = [ 
         ('cash', 'Cash'),

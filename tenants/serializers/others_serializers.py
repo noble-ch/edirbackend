@@ -8,7 +8,7 @@ class EmergencyRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmergencyRequest
         fields = '__all__'
-        read_only_fields = ('edir', 'status', 'reviewed_by', 'reviewed_at', 'approved_amount')
+        read_only_fields = ('edir', 'member', 'created_at', 'updated_at')
 
 class MemberFeedbackSerializer(serializers.ModelSerializer):
     member = MemberSerializer(read_only=True)
