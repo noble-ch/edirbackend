@@ -205,7 +205,7 @@ const PaymentsTable = ({ edirSlug }) => {
                 </TableCell>
                 <TableCell>
                   <div className="flex space-x-2">
-                    <Button
+                    {/* <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => {
@@ -214,8 +214,8 @@ const PaymentsTable = ({ edirSlug }) => {
                       }}
                     >
                       <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
+                    </Button> */}
+                    {/* <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => {
@@ -224,7 +224,7 @@ const PaymentsTable = ({ edirSlug }) => {
                       }}
                     >
                       <Edit className="h-4 w-4" />
-                    </Button>
+                    </Button> */}
                     <Button
                       variant="ghost"
                       size="icon"

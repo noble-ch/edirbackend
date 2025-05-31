@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import axios from "axios";
 import { API_BASE_URL } from "../../services/authService";
 import { format, parseISO } from "date-fns";
+import RemindersTable from "./Reminders/RemindersTable";
 
 // UI Components
 import {
@@ -227,9 +228,10 @@ function EventCoordinatorDashboard() {
               </Card>
             ) : (
               <Tabs defaultValue="tasks" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="tasks">Tasks</TabsTrigger>
                   <TabsTrigger value="attendances">Attendances</TabsTrigger>
+                  <TabsTrigger value="reminders">Reminders</TabsTrigger>
                   <TabsTrigger value="reports">Reports</TabsTrigger>
                 </TabsList>
 
@@ -271,6 +273,19 @@ function EventCoordinatorDashboard() {
                           analytics for the event.
                         </p>
                       </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="reminders">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Event Reminder</CardTitle>
+                      <CardDescription>
+                        Analytics and summaries for your event.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center ">
+                      <RemindersTable />
                     </CardContent>
                   </Card>
                 </TabsContent>

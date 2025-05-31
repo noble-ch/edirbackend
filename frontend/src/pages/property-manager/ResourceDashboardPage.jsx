@@ -5,6 +5,7 @@ import { ResourceUsageTracker } from "@/components/resources/ResourceUsageTracke
 import { ResourceReports } from "@/components/resources/ResourceReports";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ResourceAllocationList } from "@/components/resources/ResourceAllocationList";
+import RemindersTable from "./Reminders/RemindersTable";
 
 export const ResourceDashboardPage = () => {
   const [activeTab, setActiveTab] = useState("inventory");
@@ -20,6 +21,8 @@ export const ResourceDashboardPage = () => {
           <TabsTrigger value="allocations-list">Allocations list</TabsTrigger>
 
           <TabsTrigger value="tracking">Usage Tracking</TabsTrigger>
+          <TabsTrigger value="reminders">Reminders</TabsTrigger>
+
           <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 
@@ -41,6 +44,9 @@ export const ResourceDashboardPage = () => {
 
         <TabsContent value="reports">
           <ResourceReports />
+        </TabsContent>
+        <TabsContent value="reminders">
+          <RemindersTable />
         </TabsContent>
       </Tabs>
     </div>

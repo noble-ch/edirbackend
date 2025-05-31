@@ -31,9 +31,11 @@ from .resource_serializers import (
 from .financial_serializers import (
     PaymentSerializer,
     PenaltySerializer,
-    ReminderSerializer,
+  
     FinancialReportSerializer
 )
+
+from .reminder_serializers import   ReminderSerializer
 
 from .others_serializers import( EmergencyRequestSerializer, MemberFeedbackSerializer, MemorialSerializer)
 

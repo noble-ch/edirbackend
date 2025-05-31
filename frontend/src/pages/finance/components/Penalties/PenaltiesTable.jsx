@@ -78,7 +78,7 @@ const PenaltiesTable = ({ edirSlug }) => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ID</TableHead>
+              <TableHead>Member</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Status</TableHead>
@@ -88,7 +88,7 @@ const PenaltiesTable = ({ edirSlug }) => {
           <TableBody>
             {penalties.map((penalty) => (
               <TableRow key={penalty.id}>
-                <TableCell>{penalty.id}</TableCell>
+                <TableCell>{penalty.member_name}</TableCell>
                 <TableCell>${penalty.amount}</TableCell>
                 <TableCell>{penalty.penalty_type}</TableCell>
                 <TableCell>{penalty.status}</TableCell>

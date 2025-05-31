@@ -59,7 +59,7 @@ const CreateReminderModal = ({ isOpen, onClose, onSave, edirslug }) => {
       fetchMembers();
       // Reset form when opening
       setFormData({
-        reminder_type: "payment_due",
+        reminder_type: "",
         subject: "",
         message: "",
         channel: "email",
@@ -152,7 +152,6 @@ const CreateReminderModal = ({ isOpen, onClose, onSave, edirslug }) => {
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="payment_due">Payment Due</SelectItem>
                   <SelectItem value="event_reminder">Event Reminder</SelectItem>
                   <SelectItem value="general">General Announcement</SelectItem>
                   <SelectItem value="other">Other</SelectItem>

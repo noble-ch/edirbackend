@@ -92,9 +92,9 @@ function EventTaskManagement({
   const [isTaskFormOpen, setIsTaskFormOpen] = useState({});
   const [deleteConfirmation, setDeleteConfirmation] = useState({
     open: false,
-    type: null, // 'taskGroup' or 'task'
+    type: null,
     id: null,
-    taskGroupId: null, // for tasks
+    taskGroupId: null,
   });
 
   useEffect(() => {
