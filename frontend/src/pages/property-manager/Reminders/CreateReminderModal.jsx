@@ -59,7 +59,7 @@ const CreateReminderModal = ({ isOpen, onClose, onSave, edirslug }) => {
       fetchMembers();
       // Reset form when opening
       setFormData({
-        reminder_type: "payment_due",
+        reminder_type: "general",
         subject: "",
         message: "",
         channel: "email",

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Emergency from "./Emergency";
 import Feedback from "./Feedback";
+import MemorialPage from "./MemorialPage";
 
 function AdminDashboardPage() {
   return (
@@ -53,9 +54,16 @@ function AdminDashboardPage() {
               <FileText className="w-4 h-4 mr-2" />
               Reports
             </TabsTrigger>
+            <TabsTrigger value="memorial">
+              <FileText className="w-4 h-4 mr-2" />
+              Memorial
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="members">
             <MembersManagement />
+          </TabsContent>
+          <TabsContent value="memorial">
+            <MemorialPage />
           </TabsContent>
           <TabsContent value="events">
             <EventScheduler />
