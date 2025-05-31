@@ -23,9 +23,19 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CalendarIcon, Check, Plus } from "lucide-react";
+import { CalendarIcon, Check, Plus, Trash2, Edit, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, parseISO } from "date-fns";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const SHIFT_OPTIONS = [
   { value: "morning", label: "Morning (8AM-12PM)" },
@@ -40,7 +50,11 @@ function EventTaskManagement({
   selectedEvent,
   members,
   onTaskGroupCreate,
+  onTaskGroupUpdate,
+  onTaskGroupDelete,
   onTaskAssign,
+  onTaskUpdate,
+  onTaskDelete,
   onTaskComplete,
 }) {
   const [taskGroups, setTaskGroups] = useState([]);
@@ -48,6 +62,7 @@ function EventTaskManagement({
   const [isLoading, setIsLoading] = useState({
     taskGroups: false,
     tasks: false,
+    operations: false,
   });
   const [error, setError] = useState(null);
 
@@ -59,6 +74,8 @@ function EventTaskManagement({
     members: [],
   });
 
+  const [editingTaskGroup, setEditingTaskGroup] = useState(null);
+
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
@@ -69,8 +86,16 @@ function EventTaskManagement({
     priority: "medium",
   });
 
+  const [editingTask, setEditingTask] = useState(null);
+
   const [isTaskGroupFormOpen, setIsTaskGroupFormOpen] = useState(false);
   const [isTaskFormOpen, setIsTaskFormOpen] = useState({});
+  const [deleteConfirmation, setDeleteConfirmation] = useState({
+    open: false,
+    type: null, // 'taskGroup' or 'task'
+    id: null,
+    taskGroupId: null, // for tasks
+  });
 
   useEffect(() => {
     const initialState = {};
@@ -148,10 +173,11 @@ function EventTaskManagement({
 
     setError(null);
     try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
       const token = localStorage.getItem("accessToken");
       const payload = {
         ...newTaskGroup,
-        members: newTaskGroup.members.map((m) => m.id || m), // Handle both objects and IDs
+        members: newTaskGroup.members.map((m) => m.id || m),
       };
 
       const response = await axios.post(
@@ -172,6 +198,69 @@ function EventTaskManagement({
       onTaskGroupCreate?.(response.data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create task group");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
+    }
+  };
+
+  const handleUpdateTaskGroup = async () => {
+    if (!editingTaskGroup?.id) {
+      setError("No task group selected for editing");
+      return;
+    }
+
+    setError(null);
+    try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
+      const token = localStorage.getItem("accessToken");
+      const payload = {
+        ...editingTaskGroup,
+        members: editingTaskGroup.members.map((m) => m.id || m),
+      };
+
+      const response = await axios.patch(
+        `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/task-groups/${editingTaskGroup.id}/`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTaskGroups(
+        taskGroups.map((group) =>
+          group.id === editingTaskGroup.id ? response.data : group
+        )
+      );
+      setEditingTaskGroup(null);
+      onTaskGroupUpdate?.(response.data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update task group");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
+    }
+  };
+
+  const handleDeleteTaskGroup = async () => {
+    if (!deleteConfirmation.id) {
+      setError("No task group selected for deletion");
+      return;
+    }
+
+    setError(null);
+    try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
+      const token = localStorage.getItem("accessToken");
+      await axios.delete(
+        `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/task-groups/${deleteConfirmation.id}/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTaskGroups(taskGroups.filter((group) => group.id !== deleteConfirmation.id));
+      setTasks(tasks.filter((task) => task.task_group !== deleteConfirmation.id));
+      setDeleteConfirmation({ open: false, type: null, id: null });
+      onTaskGroupDelete?.(deleteConfirmation.id);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete task group");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
     }
   };
 
@@ -187,10 +276,11 @@ function EventTaskManagement({
 
     setError(null);
     try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
       const token = localStorage.getItem("accessToken");
       const payload = {
         ...newTask,
-        assigned_to: newTask.assigned_to.map((m) => m.id || m), // Handle both objects and IDs
+        assigned_to: newTask.assigned_to.map((m) => m.id || m),
       };
 
       const response = await axios.post(
@@ -213,12 +303,75 @@ function EventTaskManagement({
       onTaskAssign?.(response.data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to assign task");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
+    }
+  };
+
+  const handleUpdateTask = async () => {
+    if (!editingTask?.id || !editingTask?.task_group) {
+      setError("Task information incomplete for update");
+      return;
+    }
+
+    setError(null);
+    try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
+      const token = localStorage.getItem("accessToken");
+      const payload = {
+        ...editingTask,
+        assigned_to: editingTask.assigned_to.map((m) => m.id || m),
+      };
+
+      const response = await axios.patch(
+        `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/task-groups/${editingTask.task_group}/tasks/${editingTask.id}/`,
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTasks(
+        tasks.map((task) =>
+          task.id === editingTask.id ? response.data : task
+        )
+      );
+      setEditingTask(null);
+      onTaskUpdate?.(response.data);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update task");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
+    }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deleteConfirmation.id || !deleteConfirmation.taskGroupId) {
+      setError("Task information incomplete for deletion");
+      return;
+    }
+
+    setError(null);
+    try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
+      const token = localStorage.getItem("accessToken");
+      await axios.delete(
+        `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/task-groups/${deleteConfirmation.taskGroupId}/tasks/${deleteConfirmation.id}/`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setTasks(tasks.filter((task) => task.id !== deleteConfirmation.id));
+      setDeleteConfirmation({ open: false, type: null, id: null, taskGroupId: null });
+      onTaskDelete?.(deleteConfirmation.taskGroupId, deleteConfirmation.id);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete task");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
     }
   };
 
   const handleCompleteTask = async (taskGroupId, taskId) => {
     setError(null);
     try {
+      setIsLoading((prev) => ({ ...prev, operations: true }));
       const token = localStorage.getItem("accessToken");
       await axios.post(
         `${API_BASE_URL}/${edirslug}/events/${selectedEvent.id}/task-groups/${taskGroupId}/tasks/${taskId}/complete/`,
@@ -240,6 +393,8 @@ function EventTaskManagement({
       onTaskComplete?.(taskGroupId, taskId);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to complete task");
+    } finally {
+      setIsLoading((prev) => ({ ...prev, operations: false }));
     }
   };
 
@@ -274,6 +429,47 @@ function EventTaskManagement({
   const getShiftDisplay = (shift, shift_custom) => {
     if (shift === "custom") return shift_custom;
     return SHIFT_OPTIONS.find((s) => s.value === shift)?.label || "";
+  };
+
+  const startEditTaskGroup = (group) => {
+    setEditingTaskGroup({
+      ...group,
+      members: group.members.map((m) =>
+        typeof m === "object" ? m : members.find((mem) => mem.id === m)
+      ).filter(Boolean),
+    });
+    setIsTaskGroupFormOpen(true);
+  };
+
+  const startEditTask = (task) => {
+    setEditingTask({
+      ...task,
+      assigned_to: task.assigned_to.map((a) =>
+        typeof a === "object" ? a : members.find((mem) => mem.id === a)
+      ).filter(Boolean),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingTaskGroup(null);
+    setEditingTask(null);
+    setNewTaskGroup({
+      name: "",
+      description: "",
+      shift: "",
+      shift_custom: "",
+      members: [],
+    });
+    setNewTask({
+      title: "",
+      description: "",
+      assigned_to: [],
+      shift: "",
+      shift_custom: "",
+      due_date: "",
+      priority: "medium",
+    });
+    setIsTaskGroupFormOpen(false);
   };
 
   if (!selectedEvent) {
@@ -342,10 +538,17 @@ function EventTaskManagement({
       </div>
 
       {/* Task Group Form */}
-      {isTaskGroupFormOpen && (
+      {(isTaskGroupFormOpen || editingTaskGroup) && (
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Create New Task Group</CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle>
+                {editingTaskGroup ? "Edit Task Group" : "Create New Task Group"}
+              </CardTitle>
+              <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                <X size={16} />
+              </Button>
+            </div>
             <CardDescription>
               Organize related tasks into groups
             </CardDescription>
@@ -354,9 +557,11 @@ function EventTaskManagement({
             <div>
               <Label>Group Name</Label>
               <Input
-                value={newTaskGroup.name}
+                value={editingTaskGroup ? editingTaskGroup.name : newTaskGroup.name}
                 onChange={(e) =>
-                  setNewTaskGroup({ ...newTaskGroup, name: e.target.value })
+                  editingTaskGroup
+                    ? setEditingTaskGroup({ ...editingTaskGroup, name: e.target.value })
+                    : setNewTaskGroup({ ...newTaskGroup, name: e.target.value })
                 }
                 placeholder="e.g. Catering"
               />
@@ -364,12 +569,11 @@ function EventTaskManagement({
             <div>
               <Label>Description</Label>
               <Textarea
-                value={newTaskGroup.description}
+                value={editingTaskGroup ? editingTaskGroup.description : newTaskGroup.description}
                 onChange={(e) =>
-                  setNewTaskGroup({
-                    ...newTaskGroup,
-                    description: e.target.value,
-                  })
+                  editingTaskGroup
+                    ? setEditingTaskGroup({ ...editingTaskGroup, description: e.target.value })
+                    : setNewTaskGroup({ ...newTaskGroup, description: e.target.value })
                 }
                 placeholder="Brief description"
               />
@@ -377,9 +581,11 @@ function EventTaskManagement({
             <div>
               <Label>Shift</Label>
               <Select
-                value={newTaskGroup.shift}
+                value={editingTaskGroup ? editingTaskGroup.shift : newTaskGroup.shift}
                 onValueChange={(value) =>
-                  setNewTaskGroup({ ...newTaskGroup, shift: value })
+                  editingTaskGroup
+                    ? setEditingTaskGroup({ ...editingTaskGroup, shift: value })
+                    : setNewTaskGroup({ ...newTaskGroup, shift: value })
                 }
               >
                 <SelectTrigger>
@@ -393,15 +599,14 @@ function EventTaskManagement({
                   ))}
                 </SelectContent>
               </Select>
-              {newTaskGroup.shift === "custom" && (
+              {(editingTaskGroup?.shift === "custom" || newTaskGroup.shift === "custom") && (
                 <Input
                   className="mt-2"
-                  value={newTaskGroup.shift_custom}
+                  value={editingTaskGroup ? editingTaskGroup.shift_custom : newTaskGroup.shift_custom}
                   onChange={(e) =>
-                    setNewTaskGroup({
-                      ...newTaskGroup,
-                      shift_custom: e.target.value,
-                    })
+                    editingTaskGroup
+                      ? setEditingTaskGroup({ ...editingTaskGroup, shift_custom: e.target.value })
+                      : setNewTaskGroup({ ...newTaskGroup, shift_custom: e.target.value })
                   }
                   placeholder="Enter custom shift time"
                 />
@@ -413,14 +618,22 @@ function EventTaskManagement({
                 value={undefined}
                 onValueChange={(value) => {
                   const member = members.find((m) => m.id.toString() === value);
-                  if (
-                    member &&
-                    !newTaskGroup.members.some((m) => m.id === member.id)
-                  ) {
-                    setNewTaskGroup({
-                      ...newTaskGroup,
-                      members: [...newTaskGroup.members, member],
-                    });
+                  if (!member) return;
+
+                  if (editingTaskGroup) {
+                    if (!editingTaskGroup.members.some((m) => m.id === member.id)) {
+                      setEditingTaskGroup({
+                        ...editingTaskGroup,
+                        members: [...editingTaskGroup.members, member],
+                      });
+                    }
+                  } else {
+                    if (!newTaskGroup.members.some((m) => m.id === member.id)) {
+                      setNewTaskGroup({
+                        ...newTaskGroup,
+                        members: [...newTaskGroup.members, member],
+                      });
+                    }
                   }
                 }}
               >
@@ -436,18 +649,27 @@ function EventTaskManagement({
                 </SelectContent>
               </Select>
               <div className="flex flex-wrap gap-2 mt-2">
-                {newTaskGroup.members.map((member) => (
+                {(editingTaskGroup ? editingTaskGroup.members : newTaskGroup.members).map((member) => (
                   <Badge key={member.id} className="flex items-center gap-1">
                     {member.full_name}
                     <button
-                      onClick={() =>
-                        setNewTaskGroup({
-                          ...newTaskGroup,
-                          members: newTaskGroup.members.filter(
-                            (m) => m.id !== member.id
-                          ),
-                        })
-                      }
+                      onClick={() => {
+                        if (editingTaskGroup) {
+                          setEditingTaskGroup({
+                            ...editingTaskGroup,
+                            members: editingTaskGroup.members.filter(
+                              (m) => m.id !== member.id
+                            ),
+                          });
+                        } else {
+                          setNewTaskGroup({
+                            ...newTaskGroup,
+                            members: newTaskGroup.members.filter(
+                              (m) => m.id !== member.id
+                            ),
+                          });
+                        }
+                      }}
                       className="ml-1"
                     >
                       ×
@@ -457,14 +679,38 @@ function EventTaskManagement({
               </div>
             </div>
           </CardContent>
-          <CardFooter className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsTaskGroupFormOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateTaskGroup}>Create Group</Button>
+          <CardFooter className="flex justify-between">
+            {editingTaskGroup && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteConfirmation({
+                    open: true,
+                    type: "taskGroup",
+                    id: editingTaskGroup.id,
+                  });
+                }}
+                disabled={isLoading.operations}
+              >
+                <Trash2 size={16} className="mr-2" />
+                Delete Group
+              </Button>
+            )}
+            <div className="flex gap-2 ml-auto">
+              <Button
+                variant="outline"
+                onClick={cancelEdit}
+                disabled={isLoading.operations}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={editingTaskGroup ? handleUpdateTaskGroup : handleCreateTaskGroup}
+                disabled={isLoading.operations}
+              >
+                {editingTaskGroup ? "Update Group" : "Create Group"}
+              </Button>
+            </div>
           </CardFooter>
         </Card>
       )}
@@ -484,7 +730,6 @@ function EventTaskManagement({
             );
             const completionPercentage =
               calculateCompletionPercentage(groupTasks);
-            // Ensure groupMembers is always an array of member objects
             const groupMembers = (group.members || []).map((m) =>
               typeof m === "object"
                 ? m
@@ -511,32 +756,43 @@ function EventTaskManagement({
                         {groupTasks.length} task
                         {groupTasks.length !== 1 ? "s" : ""}
                       </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          setIsTaskFormOpen((prev) => ({
-                            ...prev,
-                            [group.id]: !prev[group.id],
-                          }))
-                        }
-                      >
-                        <Plus size={16} className="mr-1" />
-                        Add Task
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditTaskGroup(group)}
+                        >
+                          <Edit size={16} />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            setIsTaskFormOpen((prev) => ({
+                              ...prev,
+                              [group.id]: !prev[group.id],
+                            }))
+                          }
+                        >
+                          <Plus size={16} className="mr-1" />
+                          Add Task
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                  {isTaskFormOpen[group.id] && (
+                  {(isTaskFormOpen[group.id] || editingTask?.task_group === group.id) && (
                     <div className="p-6 border-b space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label>Task Title</Label>
                           <Input
-                            value={newTask.title}
+                            value={editingTask ? editingTask.title : newTask.title}
                             onChange={(e) =>
-                              setNewTask({ ...newTask, title: e.target.value })
+                              editingTask
+                                ? setEditingTask({ ...editingTask, title: e.target.value })
+                                : setNewTask({ ...newTask, title: e.target.value })
                             }
                           />
                         </div>
@@ -548,16 +804,22 @@ function EventTaskManagement({
                               const member = groupMembers.find(
                                 (m) => m.id.toString() === value
                               );
-                              if (
-                                member &&
-                                !newTask.assigned_to.some(
-                                  (m) => m.id === member.id
-                                )
-                              ) {
-                                setNewTask({
-                                  ...newTask,
-                                  assigned_to: [...newTask.assigned_to, member],
-                                });
+                              if (!member) return;
+
+                              if (editingTask) {
+                                if (!editingTask.assigned_to.some((m) => m.id === member.id)) {
+                                  setEditingTask({
+                                    ...editingTask,
+                                    assigned_to: [...editingTask.assigned_to, member],
+                                  });
+                                }
+                              } else {
+                                if (!newTask.assigned_to.some((m) => m.id === member.id)) {
+                                  setNewTask({
+                                    ...newTask,
+                                    assigned_to: [...newTask.assigned_to, member],
+                                  });
+                                }
                               }
                             }}
                           >
@@ -589,21 +851,30 @@ function EventTaskManagement({
                             </SelectContent>
                           </Select>
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {newTask.assigned_to.map((member) => (
+                            {(editingTask ? editingTask.assigned_to : newTask.assigned_to).map((member) => (
                               <Badge
                                 key={member.id}
                                 className="flex items-center gap-1"
                               >
                                 {member.full_name}
                                 <button
-                                  onClick={() =>
-                                    setNewTask({
-                                      ...newTask,
-                                      assigned_to: newTask.assigned_to.filter(
-                                        (m) => m.id !== member.id
-                                      ),
-                                    })
-                                  }
+                                  onClick={() => {
+                                    if (editingTask) {
+                                      setEditingTask({
+                                        ...editingTask,
+                                        assigned_to: editingTask.assigned_to.filter(
+                                          (m) => m.id !== member.id
+                                        ),
+                                      });
+                                    } else {
+                                      setNewTask({
+                                        ...newTask,
+                                        assigned_to: newTask.assigned_to.filter(
+                                          (m) => m.id !== member.id
+                                        ),
+                                      });
+                                    }
+                                  }}
                                   className="ml-1"
                                 >
                                   ×
@@ -616,12 +887,11 @@ function EventTaskManagement({
                       <div>
                         <Label>Description</Label>
                         <Textarea
-                          value={newTask.description}
+                          value={editingTask ? editingTask.description : newTask.description}
                           onChange={(e) =>
-                            setNewTask({
-                              ...newTask,
-                              description: e.target.value,
-                            })
+                            editingTask
+                              ? setEditingTask({ ...editingTask, description: e.target.value })
+                              : setNewTask({ ...newTask, description: e.target.value })
                           }
                         />
                       </div>
@@ -630,21 +900,22 @@ function EventTaskManagement({
                           <Label>Due Date</Label>
                           <Input
                             type="date"
-                            value={newTask.due_date}
+                            value={editingTask ? editingTask.due_date : newTask.due_date}
                             onChange={(e) =>
-                              setNewTask({
-                                ...newTask,
-                                due_date: e.target.value,
-                              })
+                              editingTask
+                                ? setEditingTask({ ...editingTask, due_date: e.target.value })
+                                : setNewTask({ ...newTask, due_date: e.target.value })
                             }
                           />
                         </div>
                         <div>
                           <Label>Priority</Label>
                           <Select
-                            value={newTask.priority}
+                            value={editingTask ? editingTask.priority : newTask.priority}
                             onValueChange={(value) =>
-                              setNewTask({ ...newTask, priority: value })
+                              editingTask
+                                ? setEditingTask({ ...editingTask, priority: value })
+                                : setNewTask({ ...newTask, priority: value })
                             }
                           >
                             <SelectTrigger>
@@ -660,9 +931,11 @@ function EventTaskManagement({
                         <div>
                           <Label>Shift</Label>
                           <Select
-                            value={newTask.shift}
+                            value={editingTask ? editingTask.shift : newTask.shift}
                             onValueChange={(value) =>
-                              setNewTask({ ...newTask, shift: value })
+                              editingTask
+                                ? setEditingTask({ ...editingTask, shift: value })
+                                : setNewTask({ ...newTask, shift: value })
                             }
                           >
                             <SelectTrigger>
@@ -679,36 +952,75 @@ function EventTaskManagement({
                               ))}
                             </SelectContent>
                           </Select>
-                          {newTask.shift === "custom" && (
+                          {(editingTask?.shift === "custom" || newTask.shift === "custom") && (
                             <Input
                               className="mt-2"
-                              value={newTask.shift_custom}
+                              value={editingTask ? editingTask.shift_custom : newTask.shift_custom}
                               onChange={(e) =>
-                                setNewTask({
-                                  ...newTask,
-                                  shift_custom: e.target.value,
-                                })
+                                editingTask
+                                  ? setEditingTask({ ...editingTask, shift_custom: e.target.value })
+                                  : setNewTask({ ...newTask, shift_custom: e.target.value })
                               }
                               placeholder="Enter custom shift time"
                             />
                           )}
                         </div>
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() =>
-                            setIsTaskFormOpen((prev) => ({
-                              ...prev,
-                              [group.id]: false,
-                            }))
-                          }
-                        >
-                          Cancel
-                        </Button>
-                        <Button onClick={() => handleAssignTask(group.id)}>
-                          Create Task
-                        </Button>
+                      <div className="flex justify-between">
+                        {editingTask && (
+                          <Button
+                            variant="destructive"
+                            onClick={() => {
+                              setDeleteConfirmation({
+                                open: true,
+                                type: "task",
+                                id: editingTask.id,
+                                taskGroupId: editingTask.task_group,
+                              });
+                            }}
+                            disabled={isLoading.operations}
+                          >
+                            <Trash2 size={16} className="mr-2" />
+                            Delete Task
+                          </Button>
+                        )}
+                        <div className="flex gap-2 ml-auto">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              if (editingTask) {
+                                setEditingTask(null);
+                              } else {
+                                setIsTaskFormOpen((prev) => ({
+                                  ...prev,
+                                  [group.id]: false,
+                                }));
+                              }
+                              setNewTask({
+                                title: "",
+                                description: "",
+                                assigned_to: [],
+                                shift: "",
+                                shift_custom: "",
+                                due_date: "",
+                                priority: "medium",
+                              });
+                            }}
+                            disabled={isLoading.operations}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() =>
+                              editingTask
+                                ? handleUpdateTask()
+                                : handleAssignTask(group.id)
+                            }
+                            disabled={isLoading.operations}
+                          >
+                            {editingTask ? "Update Task" : "Create Task"}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -745,7 +1057,7 @@ function EventTaskManagement({
                                   onClick={() =>
                                     handleCompleteTask(group.id, task.id)
                                   }
-                                  disabled={task.status === "completed"}
+                                  disabled={task.status === "completed" || isLoading.operations}
                                 >
                                   {task.status === "completed" && (
                                     <Check size={12} />
@@ -768,14 +1080,24 @@ function EventTaskManagement({
                                       {task.description}
                                     </p>
                                   </div>
-                                  <Badge
-                                    variant="default"
-                                    className={`${getPriorityColor(
-                                      task.priority
-                                    )} text-white text-xs`}
-                                  >
-                                    {task.priority}
-                                  </Badge>
+                                  <div className="flex gap-2">
+                                    <Badge
+                                      variant="default"
+                                      className={`${getPriorityColor(
+                                        task.priority
+                                      )} text-white text-xs`}
+                                    >
+                                      {task.priority}
+                                    </Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => startEditTask(task)}
+                                      disabled={isLoading.operations}
+                                    >
+                                      <Edit size={16} />
+                                    </Button>
+                                  </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-gray-500 dark:text-gray-400">
                                   {assignees.length > 0 && (
@@ -862,6 +1184,40 @@ function EventTaskManagement({
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteConfirmation.open}
+        onOpenChange={(open) => setDeleteConfirmation({ ...deleteConfirmation, open })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Are you sure you want to delete this {deleteConfirmation.type}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the{" "}
+              {deleteConfirmation.type} and all associated data.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isLoading.operations}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={
+                deleteConfirmation.type === "taskGroup"
+                  ? handleDeleteTaskGroup
+                  : handleDeleteTask
+              }
+              disabled={isLoading.operations}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isLoading.operations ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
