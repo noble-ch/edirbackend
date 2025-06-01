@@ -64,3 +64,36 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.completed_at = timezone.now()
         task.save()
         return Response({'status': 'task completed'})
+
+    
+    @action(detail=False, methods=['get'], url_path='my-assigned', permission_classes=[IsAuthenticated])
+    def my_assigned_tasks(self, request, edir_slug=None):
+        """
+        Lists all tasks assigned to the currently authenticated user
+        within the specified Edir (by slug) across all task groups they are a member of.
+        """
+        user = request.user
+
+        edir = get_object_or_404(Edir, slug=edir_slug)
+        member_instances = Member.objects.filter(user=user, edir=edir)
+
+        if not member_instances.exists():
+            return Response([], status=200)  # Return an empty list
+
+        queryset = Task.objects.filter(
+            assigned_to__in=member_instances,
+            task_group__edir=edir
+        ).distinct()
+
+        queryset = queryset.prefetch_related(
+            'assigned_to', 'assigned_by',
+            'task_group', 'task_group__event', 'task_group__edir'
+        )
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

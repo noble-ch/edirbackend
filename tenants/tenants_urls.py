@@ -60,4 +60,6 @@ urlpatterns = [
     
     path('members/request-password-reset/', MemberViewSet.as_view({'post': 'request_password_reset'}), name='request-password-reset'),
     path('members/reset-password/', MemberViewSet.as_view({'post': 'reset_password'}), name='reset-password'),
+    path('tasks/my-assigned/', TaskViewSet.as_view({'get': 'my_assigned_tasks'}), name='my-assigned-tasks'),
+
 ] + router.urls
