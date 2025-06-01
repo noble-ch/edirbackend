@@ -23,7 +23,8 @@ import {
   FileSignature,
   ClipboardList,
   ShieldQuestion,
-} from "lucide-react"; // Added ShieldQuestion for Gender or could use User
+} from "lucide-react"; 
+
 
 export const RegisterForm = ({ edirslug }) => {
   const [currentStep, setCurrentStep] = useState(1);

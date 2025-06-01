@@ -9,11 +9,12 @@ from django.shortcuts import get_object_or_404
 from ..permissions import IsEventCoordinatorOrHead
 from ..serializers import TaskGroupSerializer, TaskSerializer
 from ..models import TaskGroup, Task, Member,Event
+from ..models import Edir
 
 class TaskGroupViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsEventCoordinatorOrHead]
     serializer_class = TaskGroupSerializer
-
+    
     def get_queryset(self):
         event_id = self.kwargs.get('event_id')
         return TaskGroup.objects.filter(event_id=event_id).prefetch_related('members')
@@ -23,7 +24,7 @@ class TaskGroupViewSet(viewsets.ModelViewSet):
         event = get_object_or_404(Event, id=event_id)
         member = get_object_or_404(Member, user=self.request.user, edir=event.edir)
         serializer.save(event=event, edir=event.edir, created_by=member)
-
+ 
     @action(detail=True, methods=['post'])
     def add_members(self, request, event_id=None, pk=None):
         task_group = self.get_object()
@@ -54,8 +55,11 @@ class TaskViewSet(viewsets.ModelViewSet):
         serializer.save(task_group=task_group, assigned_by=member)
 
     @action(detail=True, methods=['post'])
-    def complete(self, request, event_id=None, task_group_id=None, pk=None):
+    def complete(self, request, edir_slug=None, event_id=None, task_group_id=None, pk=None):
+        edir = get_object_or_404(Edir, slug=edir_slug)
         task = self.get_object()
+        if task.task_group.edir != edir:
+            return Response({'detail': 'Task does not belong to this edir.'}, status=400)
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.save()

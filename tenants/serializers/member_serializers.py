@@ -149,7 +149,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'phone_number', 'address',
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
-            'representatives','status',  'created_at', 'updated_at', 'is_active','role'
+            'representatives','status',  'created_at', 'updated_at', 'is_active','role','avatar'
         ]
         read_only_fields = ['id']
         
@@ -227,7 +227,7 @@ class MemberDetailSerializer(serializers.ModelSerializer):
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
             'representatives', 'created_at', 'updated_at', 'is_active',
-            'status', 'role'
+            'status', 'role','avatar'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 'status']
         

@@ -9,6 +9,7 @@ from django.contrib.auth import get_user_model
 from .models import Resource, ResourceAllocation, ResourceUsage
 from .models import EmergencyRequest, MemberFeedback, Memorial
 from .models import Payment
+from .models import Task, TaskGroup
 
 admin.site.register(Payment)
 
@@ -92,6 +93,13 @@ class EdirRequestAdmin(admin.ModelAdmin):
 
         super().save_model(request, obj, form, change)
 
+@admin.register(TaskGroup)
+class TaskGroupAdmin(admin.ModelAdmin):
+    list_display = ('id',)
+
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ('id',)
 
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):

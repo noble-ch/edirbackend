@@ -223,6 +223,7 @@ class Member(models.Model):
     zip_code = models.CharField(max_length=20)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     is_active = models.BooleanField(default=True)
+    avatar = models.ImageField(upload_to='member_avatars/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

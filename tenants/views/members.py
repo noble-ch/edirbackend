@@ -30,7 +30,7 @@ class MemberViewSet(mixins.RetrieveModelMixin,
                    mixins.DestroyModelMixin,
                    mixins.ListModelMixin,
                    viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated, IsEdirHead] # Default, can be overridden by get_permissions
+    permission_classes = [IsAuthenticated, IsEdirHead] 
     queryset = Member.objects.all()
     
     def get_serializer_class(self):
@@ -42,7 +42,7 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         
     def get_queryset(self):
         user = self.request.user
-        queryset = Member.objects.select_related('user', 'edir').all() # Added select_related for efficiency
+        queryset = Member.objects.select_related('user', 'edir').all() 
         
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
@@ -62,11 +62,6 @@ class MemberViewSet(mixins.RetrieveModelMixin,
             else: # Regular members can only see themselves
                 return queryset.filter(pk=current_member.pk) # More direct
         except Member.DoesNotExist:
-            # If the requesting user is not a member, what should they see?
-            # IsEdirHead permission might already handle this.
-            # If user is superuser but not a member, they might see all if not for this logic.
-            # Depending on IsEdirHead, this might be fine or need adjustment for superusers.
-            # For now, if not a member, they see nothing from this queryset filtering.
             return queryset.none()
         
     @swagger_auto_schema(
@@ -78,17 +73,11 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         current_member = get_object_or_404(Member, user=request.user)
-        
-        # Check if user is updating themselves or has permission (as head or admin of the edir)
-        # Admin check: current_member.is_admin assumes an 'is_admin' field or property on Member model.
-        # If 'is_admin' refers to User.is_staff or User.is_superuser, that check should be:
-        # request.user.is_staff or request.user.is_superuser
-        # Assuming current_member.is_admin is a field on the Member model related to Edir administration.
+
         can_update = (instance.user == request.user or 
                       current_member.role == 'head' or 
                       getattr(current_member, 'is_admin', False)) # Added getattr for safety
 
-        # Additional check: head can only update members of their own edir.
         if current_member.role == 'head' and instance.edir != current_member.edir:
             can_update = False
 
@@ -104,7 +93,6 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
         
-        # Store which fields were initially in validated_data, before perform_update might modify it
         initial_validated_fields = set(serializer.validated_data.keys())
         
         self.perform_update(serializer) # This calls serializer.save() internally
@@ -113,7 +101,7 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
 
-        updated_instance = serializer.instance # Instance is updated after serializer.save()
+        updated_instance = serializer.instance 
         new_status = updated_instance.status
         new_role = updated_instance.role
 

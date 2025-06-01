@@ -8,6 +8,7 @@ import EventCoordinatorDashboard from "./pages/event-coordinator/EventCoordinato
 import MembersDashboard from "./pages/MembersDashboard";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import Admin from "./pages/edir/Admin";
 
 import { ResourceDashboardPage } from "./pages/property-manager/ResourceDashboardPage";
 
@@ -46,6 +47,7 @@ export const App = () => {
           path="/:edirslug/member/dashboard"
           element={<MembersDashboard />}
         />
+        <Route path="/edir/request" element={<Admin />} />
       </Routes>
       <Footer />
     </>

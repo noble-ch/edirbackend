@@ -5,6 +5,8 @@ from ..serializers import EmergencyRequestSerializer, MemberFeedbackSerializer, 
 
 from rest_framework.decorators import action
 from django.utils import timezone
+from ..permissions import IsEdirHead
+from tenants import serializers
 
 
 
@@ -109,8 +111,15 @@ class MemberFeedbackViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return MemberFeedback.objects.all()
+        # Check if user is Edir Head using custom permission
+        edir_head_permission = IsEdirHead()
         member = Member.objects.get(user=user)
-        return MemberFeedback.objects.filter(edir=member.edir)
+        if edir_head_permission.has_permission(self.request, self):
+            # Edir Head: show all feedbacks in their edir
+            return MemberFeedback.objects.filter(edir=member.edir)
+        else:
+            # Not Edir Head: show only feedbacks created by this member
+            return MemberFeedback.objects.filter(member=member, edir=member.edir)
 
     def perform_create(self, serializer):
         member = Member.objects.get(user=self.request.user)

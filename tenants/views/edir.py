@@ -9,6 +9,9 @@ from rest_framework.permissions import IsAdminUser
 from django.db import transaction
 
 from django.contrib.auth import get_user_model
+from django.core.mail import send_mail
+from django.urls import reverse
+from django.conf import settings
 
 User = get_user_model()
 
@@ -16,7 +19,7 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
 
     queryset = EdirRequest.objects.all()
     serializer_class = EdirRequestSerializer
-    http_method_names = ['get', 'post','patch']  # Only allow GET and POST
+    http_method_names = ['get', 'post','patch']
 
 
     @swagger_auto_schema(
@@ -53,9 +56,10 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-
+        
     def list(self, request, *args, **kwargs):
-        # Typically only admins should see all requests
+        self.permission_classes = [IsAdminUser]
+        self.check_permissions(request)
         queryset = self.filter_queryset(self.get_queryset())
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -64,6 +68,7 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['PATCH'], permission_classes=[IsAdminUser])
     def approve(self, request, pk=None):
         """Admin endpoint to approve/reject an Edir request"""
+
         edir_request = self.get_object()
         serializer = EdirRequestApprovalSerializer(
             edir_request, 
@@ -118,6 +123,28 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
                     edir_request.processed = True
                     edir_request.save()
 
+                    # Send email with edir slug and unique link
+                    edir_slug = getattr(edir, 'slug', None)
+                    if not edir_slug and hasattr(edir, 'get_slug'):
+                        edir_slug = edir.get_slug()
+                    # Fallback if slug is not available
+                    edir_slug = edir_slug or str(edir.id)
+                    # Build unique link (adjust 'edir-detail' to your url name)
+                    link = edir.unique_link
+                    subject = f"Edir '{edir.name}' Approved"
+                    message = (
+                        f"Congratulations! Your Edir '{edir.name}' has been approved.\n"
+                        f"Your edir: {edir_slug}\n"
+                        f"Access your Edir here: {link}"
+                    )
+                    send_mail(
+                        subject,
+                        message,
+                        getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                        [edir_request.email],
+                        fail_silently=True,
+                    )
+
                     return Response(
                         {
                             'message': f"Edir '{edir.name}' created successfully",
@@ -133,7 +160,7 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
-        else:  # status = 'rejected'
+        else:
             edir_request.status = 'rejected'
             edir_request.processed = True
             edir_request.save()

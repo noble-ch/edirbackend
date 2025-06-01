@@ -10,6 +10,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
+import GoogleTranslateComponent from "./GoogleTranslate";
 
 function Header() {
   const [user, setUser] = useState(null);
@@ -174,6 +175,8 @@ function Header() {
 
         {/* Auth/Actions */}
         <div className="flex  items-center gap-2">
+          <GoogleTranslateComponent />
+
           {accessToken ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
