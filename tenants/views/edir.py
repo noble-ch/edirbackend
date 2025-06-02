@@ -135,7 +135,7 @@ class EdirRequestViewSet(viewsets.ModelViewSet):
                     message = (
                         f"Congratulations! Your Edir '{edir.name}' has been approved.\n"
                         f"Your edir: {edir_slug}\n"
-                        f"Access your Edir here: {link}"
+                        f"Access your Edir here: http://localhost:5173/{edir_slug}/"
                     )
                     send_mail(
                         subject,

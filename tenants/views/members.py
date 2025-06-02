@@ -14,7 +14,7 @@ class MemberViewSet(mixins.RetrieveModelMixin,
                    mixins.DestroyModelMixin,
                    mixins.ListModelMixin,
                    viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated, IsEdirHead]
+    permission_classes = [IsAuthenticated]
     queryset = Member.objects.all()
     
     def get_serializer_class(self):
@@ -33,13 +33,10 @@ class MemberViewSet(mixins.RetrieveModelMixin,
         
         try:
             current_member = Member.objects.get(user=user)
-            # For edir heads, only show members from their edir
             if current_member.role == 'head':
                 return queryset.filter(edir=current_member.edir)
-            # For other roles (like admin), show members from their edir
             elif current_member.role != 'regular_member':
                 return queryset.filter(edir=current_member.edir).exclude(role='regular_member')
-            # Regular members can only see themselves
             else:
                 return queryset.filter(user=user)
         except Member.DoesNotExist:

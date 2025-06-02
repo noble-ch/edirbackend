@@ -24,6 +24,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 // Form validation schema
 const formSchema = z.object({
@@ -49,7 +50,7 @@ const EdirRequestPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState(null);
-
+  const navigate = useNavigate();
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -85,17 +86,19 @@ const EdirRequestPage = () => {
       }
 
       setSubmitSuccess(true);
-      toast(
-        "congratulation ! you have submited your request please check your email for verifcation results"
+      toast.success(
+        "Congratulations! Your request has been submitted. Please check your email for verification results."
       );
-      form.reset();
+
+      setTimeout(() => {
+        navigate("/");
+      }, 2000);
     } catch (error) {
       setSubmitError(error.message);
     } finally {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto">

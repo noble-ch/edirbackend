@@ -64,6 +64,17 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.completed_at = timezone.now()
         task.save()
         return Response({'status': 'task completed'})
+    lookup_field = 'id' 
+    @action(detail=True, methods=['post'], url_path='completed',permission_classes=[IsAuthenticated])
+    def completed(self, request, edir_slug=None,id=None):
+        edir = get_object_or_404(Edir, slug=edir_slug)
+        task = get_object_or_404(Task, id=id)
+        if task.task_group.edir != edir:
+            return Response({'detail': 'Task does not belong to this edir.'}, status=400)
+        task.status = 'completed'
+        task.completed_at = timezone.now()
+        task.save()
+        return Response({'status': 'task completed'})
 
     
     @action(detail=False, methods=['get'], url_path='my-assigned', permission_classes=[IsAuthenticated])
@@ -78,7 +89,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         member_instances = Member.objects.filter(user=user, edir=edir)
 
         if not member_instances.exists():
-            return Response([], status=200)  # Return an empty list
+            return Response([], status=200) 
 
         queryset = Task.objects.filter(
             assigned_to__in=member_instances,
