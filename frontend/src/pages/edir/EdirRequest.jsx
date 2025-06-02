@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
+import React, { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import {
   Form,
   FormControl,
@@ -10,12 +10,20 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 // Form validation schema
 const formSchema = z.object({
@@ -24,11 +32,17 @@ const formSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   edir_name: z.string().min(3, "Edir name must be at least 3 characters"),
-  edir_description: z.string().min(10, "Description must be at least 10 characters"),
-  proposed_cbe_account: z.string().regex(/^\d{13}$/, "CBE account must be 13 digits"),
+  edir_description: z
+    .string()
+    .min(10, "Description must be at least 10 characters"),
+  proposed_cbe_account: z
+    .string()
+    .regex(/^\d{13}$/, "CBE account must be 13 digits"),
   proposed_account_holder: z.string().min(2, "Account holder name is required"),
   proposed_address: z.string().min(5, "Address is required"),
-  proposed_initial_deposit: z.number().min(100, "Initial deposit must be at least 100 ETB"),
+  proposed_initial_deposit: z
+    .number()
+    .min(100, "Initial deposit must be at least 100 ETB"),
 });
 
 const EdirRequestPage = () => {
@@ -55,22 +69,25 @@ const EdirRequestPage = () => {
   const onSubmit = async (values) => {
     setIsSubmitting(true);
     setSubmitError(null);
-    
+
     try {
-      const response = await fetch('/api/edir-requests/', {
-        method: 'POST',
+      const response = await fetch("http://127.0.0.1:8000/api/edir/requests/", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(values),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to submit request');
+        throw new Error(errorData.message || "Failed to submit request");
       }
 
       setSubmitSuccess(true);
+      toast(
+        "congratulation ! you have submited your request please check your email for verifcation results"
+      );
       form.reset();
     } catch (error) {
       setSubmitError(error.message);
@@ -88,34 +105,41 @@ const EdirRequestPage = () => {
               Create New Edir Request
             </CardTitle>
             <CardDescription>
-              Fill out the form below to request the creation of a new Edir. All fields are required.
+              Fill out the form below to request the creation of a new Edir. All
+              fields are required.
             </CardDescription>
           </CardHeader>
-          
+
           <CardContent>
             {submitSuccess && (
               <Alert variant="success" className="mb-6">
                 <AlertTitle>Request Submitted Successfully!</AlertTitle>
                 <AlertDescription>
-                  Your Edir request has been received. Our team will review it and get back to you soon.
+                  Your Edir request has been received. Our team will review it
+                  and get back to you soon.
                 </AlertDescription>
               </Alert>
             )}
-            
+
             {submitError && (
               <Alert variant="destructive" className="mb-6">
                 <AlertTitle>Error</AlertTitle>
                 <AlertDescription>{submitError}</AlertDescription>
               </Alert>
             )}
-            
+
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-6"
+              >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Personal Information */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Personal Information</h3>
-                    
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Personal Information
+                    </h3>
+
                     <FormField
                       control={form.control}
                       name="full_name"
@@ -129,7 +153,7 @@ const EdirRequestPage = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="username"
@@ -143,7 +167,7 @@ const EdirRequestPage = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="email"
@@ -151,13 +175,17 @@ const EdirRequestPage = () => {
                         <FormItem>
                           <FormLabel>Email</FormLabel>
                           <FormControl>
-                            <Input placeholder="john@example.com" type="email" {...field} />
+                            <Input
+                              placeholder="john@example.com"
+                              type="email"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="password"
@@ -175,11 +203,13 @@ const EdirRequestPage = () => {
                       )}
                     />
                   </div>
-                  
+
                   {/* Edir Information */}
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Edir Information</h3>
-                    
+                    <h3 className="text-lg font-medium text-gray-900">
+                      Edir Information
+                    </h3>
+
                     <FormField
                       control={form.control}
                       name="edir_name"
@@ -193,7 +223,7 @@ const EdirRequestPage = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="edir_description"
@@ -201,13 +231,16 @@ const EdirRequestPage = () => {
                         <FormItem>
                           <FormLabel>Description</FormLabel>
                           <FormControl>
-                            <Input placeholder="Brief description of your Edir" {...field} />
+                            <Input
+                              placeholder="Brief description of your Edir"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="proposed_cbe_account"
@@ -215,16 +248,17 @@ const EdirRequestPage = () => {
                         <FormItem>
                           <FormLabel>CBE Account Number</FormLabel>
                           <FormControl>
-                            <Input placeholder="13 digit account number" {...field} />
+                            <Input
+                              placeholder="13 digit account number"
+                              {...field}
+                            />
                           </FormControl>
-                          <FormDescription>
-                            Must be 13 digits
-                          </FormDescription>
+                          <FormDescription>Must be 13 digits</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="proposed_account_holder"
@@ -232,13 +266,16 @@ const EdirRequestPage = () => {
                         <FormItem>
                           <FormLabel>Account Holder Name</FormLabel>
                           <FormControl>
-                            <Input placeholder="Name on the account" {...field} />
+                            <Input
+                              placeholder="Name on the account"
+                              {...field}
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="proposed_address"
@@ -252,7 +289,7 @@ const EdirRequestPage = () => {
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="proposed_initial_deposit"
@@ -260,24 +297,24 @@ const EdirRequestPage = () => {
                         <FormItem>
                           <FormLabel>Initial Deposit (ETB)</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              min="100" 
+                            <Input
+                              type="number"
+                              min="100"
                               step="100"
                               {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              onChange={(e) =>
+                                field.onChange(parseInt(e.target.value))
+                              }
                             />
                           </FormControl>
-                          <FormDescription>
-                            Minimum 100 ETB
-                          </FormDescription>
+                          <FormDescription>Minimum 100 ETB</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   </div>
                 </div>
-                
+
                 <CardFooter className="flex justify-end px-0 pb-0 pt-6">
                   <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? (
@@ -286,7 +323,7 @@ const EdirRequestPage = () => {
                         Submitting...
                       </>
                     ) : (
-                      'Submit Request'
+                      "Submit Request"
                     )}
                   </Button>
                 </CardFooter>
@@ -294,7 +331,7 @@ const EdirRequestPage = () => {
             </Form>
           </CardContent>
         </Card>
-        
+
         <div className="mt-6 text-center text-sm text-gray-500">
           <p>
             By submitting this request, you agree to our terms and conditions.

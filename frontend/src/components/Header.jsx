@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo.jpg";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +12,23 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
 import GoogleTranslateComponent from "./GoogleTranslate";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 function Header() {
   const [user, setUser] = useState(null);
   const [accessToken, setAccessToken] = useState(null);
   const [userEdir, setUserEdir] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [edirSlug, setEdirSlug] = useState("");
   const navigate = useNavigate();
 
   // Check localStorage for user on initial mount and on changes
@@ -62,6 +74,14 @@ function Header() {
     }
   }, [navigate]);
 
+  const handleRegister = (e) => {
+    e.preventDefault();
+    if (edirSlug.trim()) {
+      navigate(`/${edirSlug}/register`);
+      setIsDialogOpen(false);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-primary shadow-md">
       <div className="container flex h-16 items-center bg-primary w-full justify-between px-4">
@@ -85,7 +105,10 @@ function Header() {
                   className="flex items-center gap-2 text-lg font-semibold"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
-                  <span>Edir Platform</span>
+                  <img src={logo} alt="" />
+                  <span className="text-2xl font-bold text-white">
+                    Edir<span className="text-sky-400">Platform</span>{" "}
+                  </span>
                 </Link>
                 <Link
                   to="/"
@@ -95,7 +118,7 @@ function Header() {
                   Home
                 </Link>
                 <Link
-                  to="#about"
+                  to="about"
                   className="text-white hover:text-black transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
@@ -133,22 +156,46 @@ function Header() {
                     >
                       Login
                     </Link>
-                    <Link
-                      to="/register"
-                      className="text-white hover:text-black transition-colors"
-                      onClick={() => setIsMobileMenuOpen(false)}
-                    >
-                      Register
-                    </Link>
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                      <DialogTrigger asChild>
+                        <button
+                          className="text-white hover:text-black transition-colors text-left"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                        >
+                          Register
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Enter Your Association</DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={handleRegister} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="edir">Association Name</Label>
+                            <Input
+                              id="edir"
+                              placeholder="Enter your association name"
+                              value={edirSlug}
+                              onChange={(e) => setEdirSlug(e.target.value)}
+                              required
+                            />
+                          </div>
+                          <Button type="submit" className="w-full">
+                            Continue to Register
+                          </Button>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
                   </>
                 )}
               </nav>
             </SheetContent>
           </Sheet>
 
-          <Link to="/" className="text-lg font-semibold md:text-xl">
-            Edir Platform
-          </Link>
+          <img src={logo} className="w-6 h-5" />
+          <span className="text-2xl font-bold text-white">
+            Edir<span className="text-sky-400">Platform</span>{" "}
+          </span>
         </div>
 
         {/* Desktop Navigation */}
@@ -160,7 +207,7 @@ function Header() {
             Home
           </Link>
           <Link
-            to="#about"
+            to="about"
             className="text-sm font-medium text-white transition-colors hover:text-black"
           >
             About
@@ -171,10 +218,16 @@ function Header() {
           >
             Contact
           </Link>
+          <Link
+            to="#donwload"
+            className="text-sm font-medium text-white transition-colors hover:text-black"
+          >
+            Downoload App
+          </Link>
         </nav>
 
         {/* Auth/Actions */}
-        <div className="flex  items-center gap-2">
+        <div className="flex items-center gap-2">
           <GoogleTranslateComponent />
 
           {accessToken ? (
@@ -218,9 +271,33 @@ function Header() {
                     Login
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link to="/register">Register</Link>
-                </DropdownMenuItem>
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                  <DialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                      Register
+                    </DropdownMenuItem>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Enter Your Association</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleRegister} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edir">Association Name</Label>
+                        <Input
+                          id="edir"
+                          placeholder="Enter your association name"
+                          value={edirSlug}
+                          onChange={(e) => setEdirSlug(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">
+                        Continue to Register
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

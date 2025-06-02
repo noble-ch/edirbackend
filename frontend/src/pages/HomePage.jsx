@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Link } from "react-router-dom";
 
 function HomePage() {
   return (
@@ -45,18 +46,25 @@ function HomePage() {
               financial solidarity
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button
+              <Link
+                to="/edir/request"
                 size="lg"
-                className="text-lg bg-orange-500 hover:bg-orange-600"
+                className="text-lg bg-orange-500 hover:bg-orange-600 rounded-md  px-2 flex py-1"
               >
-                Join Our Community <ArrowRight className="ml-2 h-5 w-5" />
-              </Button>
-              <Button
+                Create an Edir <ArrowRight className="ml-2 h-5 w-5 mt-1" />
+              </Link>
+              {/* <Button
                 size="lg"
                 variant="outline"
                 className="text-lg border-white text-green-500 hover:text-orange-400 hover:bg-white/10"
               >
-                Learn More
+                Get Started
+              </Button> */}
+              <Button
+                asChild
+                className="text-lg bg-white border-white text-green-500 hover:text-orange-400 hover:bg-white/10"
+              >
+                <Link to="/login">Get Started</Link>
               </Button>
             </div>
           </div>
@@ -272,9 +280,7 @@ function HomePage() {
                     <h3 className="text-xl font-bold mb-2">
                       OPULCAN +45% MASS
                     </h3>
-                    <p className="text-black">
-                      Member growth over last year
-                    </p>
+                    <p className="text-black">Member growth over last year</p>
                   </div>
                 </div>
                 <div className="mt-6 h-32 bg-white/10 rounded-lg flex items-center justify-center">
@@ -291,9 +297,7 @@ function HomePage() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold mb-2">MASSAGE online</h3>
-                    <p className="text-black">
-                      Community engagement platform
-                    </p>
+                    <p className="text-black">Community engagement platform</p>
                   </div>
                 </div>
                 <div className="mt-4">

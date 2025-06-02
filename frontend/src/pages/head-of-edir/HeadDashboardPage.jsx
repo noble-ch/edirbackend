@@ -33,7 +33,7 @@ function AdminDashboardPage() {
         </header>
 
         <Tabs defaultValue="members" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 md:w-2xl mb-6">
+          <TabsList className="grid w-full grid-cols-6 md:w-2xl mb-6">
             <TabsTrigger value="members">
               <Users className="w-4 h-4 mr-2" />
               Members

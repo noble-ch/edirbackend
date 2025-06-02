@@ -29,12 +29,31 @@ import {
   PlusCircle,
 } from "lucide-react";
 
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: "http://127.0.0.1:8000/api/",
+});
+
+// Add request interceptor to include the token
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 export default function MemorialPage() {
-  const { edirSlug } = useParams();
   const [memorials, setMemorials] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentMemorial, setCurrentMemorial] = useState(null);
+  const { edirslug } = useParams();
   const [formData, setFormData] = useState({
     member: "",
     title: "",
@@ -48,12 +67,12 @@ export default function MemorialPage() {
 
   useEffect(() => {
     fetchMemorials();
-  }, [edirSlug]);
+  }, [edirslug]);
 
   const fetchMemorials = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get(`/api/edirs/${edirSlug}/memorials/`);
+      const response = await api.get(`${edirslug}/memorials/`);
       setMemorials(response.data);
     } catch (error) {
       console.error("Error fetching memorials:", error);
@@ -84,12 +103,9 @@ export default function MemorialPage() {
       });
 
       if (currentMemorial) {
-        await axios.patch(
-          `/api/edirs/${edirSlug}/memorials/${currentMemorial.id}/`,
-          data
-        );
+        await api.patch(`${edirslug}/memorials/${currentMemorial.id}/`, data);
       } else {
-        await axios.post(`/api/edirs/${edirSlug}/memorials/`, data);
+        await api.post(`${edirslug}/memorials/`, data);
       }
       fetchMemorials();
       setIsDialogOpen(false);
@@ -100,7 +116,7 @@ export default function MemorialPage() {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`/api/edirs/${edirSlug}/memorials/${id}/`);
+      await api.delete(`${edirslug}/memorials/${id}/`);
       fetchMemorials();
     } catch (error) {
       console.error("Error deleting memorial:", error);

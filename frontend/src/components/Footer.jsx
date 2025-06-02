@@ -6,7 +6,6 @@ import { Facebook, Twitter, Instagram, Linkedin, Github } from "lucide-react";
 const Logo = () => (
   <span className="text-2xl font-bold text-white">
     Edir<span className="text-sky-400">Platform</span>{" "}
-    {/* Changed blue-400 to sky-400 for a slightly different hue */}
   </span>
 );
 
