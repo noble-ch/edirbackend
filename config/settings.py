@@ -214,7 +214,6 @@ TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 SMS_API_KEY = os.environ.get('SMS_API_KEY')
 
 
-
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'  # For production

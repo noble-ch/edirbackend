@@ -275,9 +275,9 @@ class MemberUpdateSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'phone_number', 'address',
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'spouse', 'family_members',
-            'representatives', 'status', 'role'
+            'representatives', 'status', 'role','avatar'
         ]
-        read_only_fields = ['status', 'role']  # Default to read-only, head can override
+        read_only_fields = ['status', 'role']
     
     def update(self, instance, validated_data):
         # Handle nested updates
