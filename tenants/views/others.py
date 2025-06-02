@@ -138,4 +138,4 @@ class MemorialViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         member = Member.objects.get(user=self.request.user)
-        serializer.save(edir=member.edir, created_by=member)
+        serializer.save(edir=member.edir, created_by=member, member=member)

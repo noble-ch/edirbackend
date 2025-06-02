@@ -22,6 +22,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   MoreVertical,
   CandlestickChart,
   Heart,
@@ -50,6 +57,7 @@ api.interceptors.request.use(
 
 export default function MemorialPage() {
   const [memorials, setMemorials] = useState([]);
+  const [members, setMembers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [currentMemorial, setCurrentMemorial] = useState(null);
@@ -67,12 +75,19 @@ export default function MemorialPage() {
 
   useEffect(() => {
     fetchMemorials();
+    fetchMembers();
   }, [edirslug]);
 
   const fetchMemorials = async () => {
     try {
       setIsLoading(true);
-      const response = await api.get(`${edirslug}/memorials/`);
+      const accessToken = localStorage.getItem("accessToken");
+      const config = {
+        headers: {
+          Authorization: accessToken ? `Bearer ${accessToken}` : undefined,
+        },
+      };
+      const response = await api.get(`${edirslug}/memorials/`, config);
       setMemorials(response.data);
     } catch (error) {
       console.error("Error fetching memorials:", error);
@@ -81,8 +96,27 @@ export default function MemorialPage() {
     }
   };
 
+  const fetchMembers = async () => {
+    try {
+      const accessToken = localStorage.getItem("accessToken");
+      const config = {
+        headers: {
+          Authorization: accessToken ? `Bearer ${accessToken}` : undefined,
+        },
+      };
+      const response = await api.get(`${edirslug}/members/`, config);
+      setMembers(response.data);
+    } catch (error) {
+      console.error("Error fetching members:", error);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  const handleSelectChange = (name, value) => {
     setFormData({ ...formData, [name]: value });
   };
 
@@ -102,10 +136,21 @@ export default function MemorialPage() {
         }
       });
 
+      const accessToken = localStorage.getItem("accessToken");
+      const config = {
+        headers: {
+          Authorization: accessToken ? `Bearer ${accessToken}` : undefined,
+        },
+      };
+
       if (currentMemorial) {
-        await api.patch(`${edirslug}/memorials/${currentMemorial.id}/`, data);
+        await api.patch(
+          `${edirslug}/memorials/${currentMemorial.id}/`,
+          data,
+          config
+        );
       } else {
-        await api.post(`${edirslug}/memorials/`, data);
+        await api.post(`${edirslug}/memorials/`, data, config);
       }
       fetchMemorials();
       setIsDialogOpen(false);
@@ -301,15 +346,23 @@ export default function MemorialPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="member">Member ID</Label>
-                <Input
-                  id="member"
-                  name="member"
-                  type="number"
+                <Label htmlFor="member">Member</Label>
+                <Select
                   value={formData.member}
-                  onChange={handleInputChange}
+                  onValueChange={(value) => handleSelectChange("member", value)}
                   required
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((member) => (
+                      <SelectItem key={member.id} value={member.id.toString()}>
+                        {member.full_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="date_of_passing">Date of Passing</Label>
