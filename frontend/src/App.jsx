@@ -11,6 +11,8 @@ import Footer from "./components/Footer";
 import Admin from "./pages/edir/Admin";
 
 import { ResourceDashboardPage } from "./pages/property-manager/ResourceDashboardPage";
+import HomePage from "./pages/HomePage";
+import EdirRequestPage from "./pages/edir/EdirRequest";
 
 export const App = () => {
   return (
@@ -18,7 +20,7 @@ export const App = () => {
       {" "}
       <Header />
       <Routes>
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/:edirslug/login" element={<LoginPage />} />
         <Route path="/:edirslug/register" element={<RegisterPage />} />
         <Route path="/pending-approval" element={<PendingApprovalPage />} />
@@ -47,7 +49,9 @@ export const App = () => {
           path="/:edirslug/member/dashboard"
           element={<MembersDashboard />}
         />
-        <Route path="/edir/request" element={<Admin />} />
+        <Route path="/edir/admin" element={<Admin />} />
+        <Route path="/edir/request" element={<EdirRequestPage />} />
+
       </Routes>
       <Footer />
     </>

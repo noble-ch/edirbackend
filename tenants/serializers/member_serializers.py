@@ -26,7 +26,6 @@ class RepresentativeSerializer(serializers.ModelSerializer):
         fields = ['full_name', 'phone_number', 'email', 'date_of_designation']
 
 class UserLoginSerializer(serializers.Serializer):
-    
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
     access = serializers.CharField(read_only=True)
@@ -35,6 +34,7 @@ class UserLoginSerializer(serializers.Serializer):
     is_edir_head = serializers.SerializerMethodField(read_only=True)
     verification_status = serializers.SerializerMethodField(read_only=True)
     role = serializers.CharField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
 
     def get_verification_status(self, obj):
         edir_slug = self.context.get('edir_slug')
@@ -46,6 +46,10 @@ class UserLoginSerializer(serializers.Serializer):
                 )
                 return member.status  
             except Member.DoesNotExist:
+                # Check if user is staff
+                user = User.objects.get(username=obj['username'])
+                if user.is_staff:
+                    return "staff"
                 return "not_member"
         return None
 
@@ -70,9 +74,13 @@ class UserLoginSerializer(serializers.Serializer):
     def get_role(self, obj):
         try:
             member = Member.objects.get(user__username=obj['username'])
-            return member.edir.role
+            return member.role
         except Member.DoesNotExist:
-            return False
+            # Check if user is staff
+            user = User.objects.get(username=obj['username'])
+            if user.is_staff:
+                return "admin"
+            return None
 
     def validate(self, data):
         username = data['username']
@@ -90,6 +98,24 @@ class UserLoginSerializer(serializers.Serializer):
         try:
             member = Member.objects.get(user=user)
         except Member.DoesNotExist:
+            if user.is_staff:
+                refresh = RefreshToken.for_user(user)
+                refresh_token = str(refresh)
+                access_token = str(refresh.access_token)
+                update_last_login(None, user)
+                
+                return {
+                    'access': access_token,
+                    'refresh': refresh_token,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': 'admin',
+                    'is_staff': True,
+                    'edir': 'admin',
+                    'is_edir_head': False,
+                    'verification_status': 'approved',
+                    'message': 'Staff login successful'
+                }
             raise serializers.ValidationError("User is not registered as a member of any Edir")
         
         if edir_slug and member.edir.slug != edir_slug:
@@ -116,6 +142,7 @@ class UserLoginSerializer(serializers.Serializer):
                 'username': user.username,
                 'email': user.email,
                 'role': role,
+                'is_staff': user.is_staff,
                 'edir': self.get_edir({'username': username}),
                 'is_edir_head': self.get_is_edir_head({'username': username}),
                 'verification_status': verification_status,
@@ -131,7 +158,8 @@ class UserLoginSerializer(serializers.Serializer):
             "approved": "Login successful",
             "pending": "Your membership is pending approval",
             "rejected": "Your membership has been rejected",
-            "not_member": "You are not a member of this Edir"
+            "not_member": "You are not a member of this Edir",
+            "staff": "Staff login successful"
         }
         return messages.get(status, "Unknown status")
 
@@ -149,7 +177,7 @@ class MemberSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'phone_number', 'address',
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
-            'representatives','status',  'created_at', 'updated_at', 'is_active','role','avatar'
+            'representatives','status',  'created_at', 'updated_at', 'is_active','role'
         ]
         read_only_fields = ['id']
         
@@ -227,7 +255,7 @@ class MemberDetailSerializer(serializers.ModelSerializer):
             'city', 'state', 'zip_code', 'home_or_alternate_phone',
             'registration_type', 'edir', 'spouse', 'family_members',
             'representatives', 'created_at', 'updated_at', 'is_active',
-            'status', 'role','avatar'
+            'status', 'role'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'is_active', 'status']
         

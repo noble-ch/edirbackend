@@ -42,8 +42,8 @@ export const LoginForm = ({ edirslug }) => {
       const user = {
         username: data.username,
         email: data.email,
-        edir: data.edir, // edir: { id, name, slug }
-        role: data.role, // e.g., ["MEMBER"], ["TREASURER"]
+        edir: data.edir, 
+        role: data.role, 
         is_edir_head: data.is_edir_head,
         verification_status: data.verification_status,
       };
@@ -55,6 +55,8 @@ export const LoginForm = ({ edirslug }) => {
         navigate("/pending-approval");
       } else if (user.is_edir_head) {
         navigate(`/${user.edir.slug}/head/dashboard`);
+      } else if (user.role && user.role.toUpperCase() === "ADMIN") {
+        navigate(`/edir/admin`);
       } else {
         let dashboardPath = `/${user.edir.slug}/member/dashboard`;
 
